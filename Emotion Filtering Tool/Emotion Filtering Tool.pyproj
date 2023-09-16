@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>00b8d211-04d9-473f-9ff0-ec222d972ce0</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>Emotion_Filtering_Tool.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -12,6 +12,7 @@
     <Name>Emotion Filtering Tool</Name>
     <RootNamespace>Emotion Filtering Tool</RootNamespace>
     <InterpreterId>MSBuild|eft_env|$(MSBuildProjectFullPath)</InterpreterId>
+    <IsWindowsApplication>False</IsWindowsApplication>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -21,10 +22,6 @@
     <DebugSymbols>true</DebugSymbols>
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="Emotion_Filtering_Tool.py" />
-    <Compile Include="gui\main_window.py" />
-  </ItemGroup>
   <ItemGroup>
     <Interpreter Include="eft_env\">
       <Id>eft_env</Id>
@@ -37,9 +34,22 @@
     </Interpreter>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="gui\" />
-    <Folder Include="image_processing\" />
-    <Folder Include="neural_network\" />
+    <Folder Include="models\" />
+    <Folder Include="controllers\" />
+    <Folder Include="views\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="controllers\image_controller.py" />
+    <Compile Include="controllers\main_controller.py" />
+    <Compile Include="main.py" />
+    <Compile Include="models\image_model.py" />
+    <Compile Include="models\user_settings_model.py" />
+    <Compile Include="views\augmentation_view.py" />
+    <Compile Include="views\data_upload_view.py" />
+    <Compile Include="views\export_options_view.py" />
+    <Compile Include="views\gallery_view.py" />
+    <Compile Include="views\image_review_view.py" />
+    <Compile Include="views\main_window.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
