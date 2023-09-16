@@ -11,6 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>Emotion Filtering Tool</Name>
     <RootNamespace>Emotion Filtering Tool</RootNamespace>
+    <InterpreterId>MSBuild|eft_env|$(MSBuildProjectFullPath)</InterpreterId>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,6 +23,23 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Emotion_Filtering_Tool.py" />
+    <Compile Include="gui\main_window.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Interpreter Include="eft_env\">
+      <Id>eft_env</Id>
+      <Version>3.10</Version>
+      <Description>eft_env (Python 3.10)</Description>
+      <InterpreterPath>Scripts\python.exe</InterpreterPath>
+      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
+      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
+      <Architecture>X64</Architecture>
+    </Interpreter>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="gui\" />
+    <Folder Include="image_processing\" />
+    <Folder Include="neural_network\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
