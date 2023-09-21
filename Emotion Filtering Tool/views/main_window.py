@@ -1,47 +1,43 @@
 # The main UI window that houses all other views
 
-import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QTabWidget, QWidget, QVBoxLayout
+# The main UI window that houses all other views
 
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
+import tkinter as tk
+from tkinter import ttk
 
-        # Set up the main window
-        self.initUI()
+
+class MainWindow(tk.Frame):
+    def __init__(self, master=None):
+        super().__init__(master)
+        self.master = master
+        self.pack()
         # Window settings
-        self.setWindowTitle('EFT Image Application')
-        self.setGeometry(100, 100, 800, 600)
-
-        # Create the main container
-        self.container = QVBoxLayout()
-
-        # Create the tab widget
-        self.tabs = QTabWidget()
-        self.container.addWidget(self.tabs)
-
+        self.master.title('EFT Image Application')
+        self.master.geometry('800x600')
+        
         # Create tabs
-        self.tab1 = QWidget()
-        self.tab2 = QWidget()
-        self.tab3 = QWidget()
-        self.tab4 = QWidget()
-        self.tab5 = QWidget()
+        self.tabs = ttk.Notebook(self.master)
+        self.tab1 = ttk.Frame(self.tabs)
+        self.tab2 = ttk.Frame(self.tabs)
+        self.tab3 = ttk.Frame(self.tabs)
+        self.tab4 = ttk.Frame(self.tabs)
+        self.tab5 = ttk.Frame(self.tabs)
 
         # Add tabs to the widget
-        self.tabs.addTab(self.tab1, "Gallery View")
-        self.tabs.addTab(self.tab2, "Data Upload & Image Selection")
-        self.tabs.addTab(self.tab3, "Detailed Image Review")
-        self.tabs.addTab(self.tab4, "Augmentation View")
-        self.tabs.addTab(self.tab5, "Dataset Export Options")
+        self.tabs.add(self.tab1, text="Gallery View")
+        self.tabs.add(self.tab2, text="Data Upload & Image Selection")
+        self.tabs.add(self.tab3, text="Detailed Image Review")
+        self.tabs.add(self.tab4, text="Augmentation View")
+        self.tabs.add(self.tab5, text="Dataset Export Options")
 
-        # Create a main widget for the main window and set the layout
-        self.main_widget = QWidget(self)
-        self.main_widget.setLayout(self.container)
-        self.setCentralWidget(self.main_widget)
+        self.tabs.pack(expand=1, fill='both')
 
-        # Show the main window
-        self.show()
+        # Initialize UI components
+        self.initUI()
 
     def initUI(self):
-        # Initialize UI components
+        # Initialize UI components for tabs here if needed
+        # For example:
+        # label1 = tk.Label(self.tab1, text="This is Gallery View")
+        # label1.pack(pady=20, padx=20)
         pass

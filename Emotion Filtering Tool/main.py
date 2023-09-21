@@ -1,10 +1,15 @@
 # The entry point of the application, where everything gets wired up and started
 
+
 import sys
-from PyQt5.QtWidgets import QApplication
-from controllers.main_controller import MainController
+import tkinter as tk
+from views.main_window import MainWindow
+from ttkthemes import ThemedTk
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    controller = MainController()
-    sys.exit(app.exec_())
+    root = ThemedTk(theme="arc")
+    root.title('EFT Image Application')
+    root.geometry('800x600')
+
+    main_win = MainWindow(master=root)
+    root.mainloop()
