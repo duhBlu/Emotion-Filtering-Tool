@@ -9,7 +9,13 @@ from ttkthemes import ThemedTk
 if __name__ == "__main__":
     root = ThemedTk(theme="arc")
     root.title('EFT Image Application')
-    root.geometry('800x600')
-
+    
+    # Create the main window frame
     main_win = MainWindow(master=root)
+    main_win.pack(fill=tk.BOTH, expand=True)
+
+    # Allow the main frame to grow and shrink with the window
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
     root.mainloop()
