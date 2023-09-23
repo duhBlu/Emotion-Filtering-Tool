@@ -1,4 +1,3 @@
-# Similarly, for gallery view
 import tkinter as tk
 from tkinter import ttk
 

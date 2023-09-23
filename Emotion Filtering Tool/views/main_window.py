@@ -12,7 +12,7 @@ from views.export_options_view import ExportOptionView
 class MainWindow(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
-        self.grid(sticky='nsew')  # Make the frame expand with the window
+        self.grid(sticky='nsew')
 
         # Configure the main frame's rows and columns
         for i in range(5):  # Assuming you have 5 buttons
@@ -50,5 +50,7 @@ class MainWindow(tk.Frame):
 
         new_view = self.views.get(view_name)
         if new_view:
-            new_view.grid(row=0, column=1, rowspan=5, sticky='nsew')  # This displays the new view to the right of the buttons
+            if hasattr(new_view, 'show'):
+                new_view.show()
+            new_view.grid(row=0, column=1, rowspan=5, sticky='nsew')
             self.current_view = new_view
