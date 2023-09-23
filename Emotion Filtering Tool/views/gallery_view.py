@@ -34,6 +34,9 @@ class GalleryView(ttk.Frame):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
 
+# NO WORK
+# currently not working. Images are not displaying. I think they may need to be resized. 
+# Also the scrollable grid box and maximum images per line should be dynamically changed.
     def add_image_to_gallery(self, images):
         if not isinstance(images, list):
             images = [images]

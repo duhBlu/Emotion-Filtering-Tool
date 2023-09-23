@@ -5,6 +5,7 @@ import threading
 import zipfile
 import os
 from PIL import Image
+import cv2
 
 from views.gallery_view import GalleryView
 
