@@ -18,8 +18,8 @@ class MainWindow(tk.Frame):
         for i in range(5):  # Assuming you have 5 buttons
             self.grid_rowconfigure(i, weight=1)
 
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=5)
 
         # Dictionary to store views (frames) to show/hide
         self.views = {}

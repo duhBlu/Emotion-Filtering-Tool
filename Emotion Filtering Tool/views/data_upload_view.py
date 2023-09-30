@@ -26,14 +26,14 @@ class DataUploadView(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
+        # Overall frame grid configuration
         self.grid_rowconfigure(0, weight=0)  # Header label remains fixed size
-        self.grid_rowconfigure(1, weight=1)  # Notebook expands vertically
-        self.grid_rowconfigure(2, weight=1)  # Upload button remains fixed size
-        self.grid_rowconfigure(3, weight=1)  # Image listbox remains fixed size
-        self.grid_rowconfigure(4, weight=1)  # Process button remains fixed size
+        self.grid_rowconfigure(1, weight=1)  # Upload button and listbox
+        self.grid_rowconfigure(2, weight=1)  # Notebook expands vertically
+        self.grid_rowconfigure(3, weight=1)  # Process button remains fixed size
 
         self.grid_columnconfigure(0, weight=1)  
-        self.grid_columnconfigure(1, weight=1)  
+        self.grid_columnconfigure(1, weight=3)  # This ensures the majority of horizontal space is occupied by the notebook
         self.grid_columnconfigure(2, weight=1) 
 
         # Header label
@@ -42,7 +42,7 @@ class DataUploadView(tk.Frame):
 
         # Create the notebook (tabbed interface)
         self.notebook = ttk.Notebook(self)
-        self.notebook.grid(row=2, column=1, padx=10, pady=10, sticky='nsew')
+        self.notebook.grid(row=1, column=1, rowspan=2, padx=10, pady=10, sticky='nsew')
 
         # Tabs for the notebook
         self.create_race_tab()
@@ -55,16 +55,17 @@ class DataUploadView(tk.Frame):
 
         # Image listbox
         self.image_listbox = tk.Listbox(self)
-        self.image_listbox.grid(row=2, column=0, padx=10, pady=2, sticky='nw')
+        self.image_listbox.grid(row=2, column=0, padx=10, pady=2, sticky='nsew')
 
         # Process button
         self.process_button = ttk.Button(self, text="Process", command=self.process_images)
-        self.process_button.grid(row=4, column=2, padx=10, pady=10, sticky='e')
+        self.process_button.grid(row=3, column=2, padx=10, pady=10, sticky='e')
 
         # Loading label
         self.loading_label = ttk.Label(self, text="Loading...")
-        self.loading_label.grid(row=4, column=2, sticky='w')
+        self.loading_label.grid(row=3, column=0, sticky='w')
         self.loading_label.grid_remove()
+
 
     def create_race_tab(self):
         frame = ttk.Frame(self.notebook)
