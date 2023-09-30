@@ -26,8 +26,8 @@ class MainWindow(tk.Frame):
         self.current_view = None
 
         # Create the view frames but don't display them yet
-        self.views['Data Upload & Image Selection'] = DataUploadView(self)
         self.views['Gallery'] = GalleryView(self)
+        self.views['Data Upload & Image Selection'] = DataUploadView(self, gallery_view=self.views['Gallery'])
         self.views['Manual Image Review'] = ManualReviewView(self)
         self.views['Image Augmentation'] = AugmentationView(self)
         self.views['Dataset Export Options'] = ExportOptionView(self)

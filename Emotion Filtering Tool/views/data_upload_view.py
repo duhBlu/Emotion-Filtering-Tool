@@ -7,6 +7,10 @@ import os
 from PIL import Image
 import cv2
 
+import asyncio
+import aiofiles
+from io import BytesIO
+
 from views.gallery_view import GalleryView
 
 
@@ -16,9 +20,9 @@ class DataUploadView(tk.Frame):
     def __init__(self, main_window, gallery_view=None, master=None):
         super().__init__(master)
         self.main_window = main_window
-        self.gallery_view = None  
+        self.gallery_view = gallery_view 
         self.uploaded_files = []
-        self.extracted_image_paths = []
+        self.extracted_folder_paths = []
         self.create_widgets()
 
     def create_widgets(self):
@@ -50,20 +54,14 @@ class DataUploadView(tk.Frame):
             if file_path.endswith('.zip'):
                 self.extract_zip_file(file_path)
 
+
     def process_images(self):
         if not self.gallery_view:
-            self.gallery_view = GalleryView(master=self.master) 
+            self.gallery_view = GalleryView(master=self.master)
         self.main_window.change_view('Gallery')
-        for img_path in self.extracted_image_paths:
-            try:
-                image = Image.open(img_path)
-                self.gallery_view.add_image_to_gallery(image)
-                print(f"Loaded {img_path}")
-            except Exception as e:
-                print(f"Error loading image {os.path.basename(img_path)}: {e}")
-
-
-
+        self.gallery_view.load_images_from_folder(self.extracted_folder_paths)
+        # Testing this for now. just trying to get the uploaded images to display in the gallery view, but we can pass the extracted image paths into the nn to be loaded + filtered
+        # then the candidate paths will then be sent into the gallery view
 
 
     def extract_zip_file(self, zip_path):
@@ -76,18 +74,15 @@ class DataUploadView(tk.Frame):
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(extract_dir)
 
-        # Iterate over the extracted images and save their paths
-        for img_file in os.listdir(extract_dir):
-            if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                img_path = os.path.join(extract_dir, img_file)
-                self.extracted_image_paths.append(img_path)
-
-
-        zip_filename = os.path.basename(zip_path)
-        self.master.after(0, lambda: self.image_listbox.insert(tk.END, zip_filename))
+        # Set the path to the extracted folder
+        self.extracted_folder_paths.append(extract_dir.replace("\\", "/"))
+        
         self.master.after(0, self._finish_extraction)
+
 
     def _finish_extraction(self):
         self.loading_label.grid_remove()  # Hide the loading label
         self.process_button['state'] = tk.NORMAL
+
+
         
