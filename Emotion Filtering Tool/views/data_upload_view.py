@@ -26,18 +26,78 @@ class DataUploadView(tk.Frame):
         self.create_widgets()
 
     def create_widgets(self):
+        self.grid_rowconfigure(0, weight=0)  # Header label remains fixed size
+        self.grid_rowconfigure(1, weight=1)  # Notebook expands vertically
+        self.grid_rowconfigure(2, weight=1)  # Upload button remains fixed size
+        self.grid_rowconfigure(3, weight=1)  # Image listbox remains fixed size
+        self.grid_rowconfigure(4, weight=1)  # Process button remains fixed size
+
+        self.grid_columnconfigure(0, weight=1)  
+        self.grid_columnconfigure(1, weight=1)  
+        self.grid_columnconfigure(2, weight=1) 
+
+        # Header label
+        self.header_label = ttk.Label(self, text="Filtering options")
+        self.header_label.grid(row=0, column=1, padx=10, pady=10, sticky='ew', columnspan=3)
+
+        # Create the notebook (tabbed interface)
+        self.notebook = ttk.Notebook(self)
+        self.notebook.grid(row=2, column=1, padx=10, pady=10, sticky='nsew')
+
+        # Tabs for the notebook
+        self.create_race_tab()
+        self.create_age_tab()
+        self.create_emotion_tab()
+
+        # Upload button
         self.upload_button = ttk.Button(self, text="Upload Dataset", command=self.upload_dataset)
-        self.upload_button.grid(row=0, column=0, padx=10, pady=10)
+        self.upload_button.grid(row=1, column=0, padx=10, pady=2, sticky='nw')
 
+        # Image listbox
         self.image_listbox = tk.Listbox(self)
-        self.image_listbox.grid(row=1, column=0, padx=10, pady=10)
+        self.image_listbox.grid(row=2, column=0, padx=10, pady=2, sticky='nw')
 
+        # Process button
         self.process_button = ttk.Button(self, text="Process", command=self.process_images)
-        self.process_button.grid(row=2, column=1, padx=10, pady=10, sticky='e')  # This places the button on the bottom right
-        
+        self.process_button.grid(row=4, column=2, padx=10, pady=10, sticky='e')
+
+        # Loading label
         self.loading_label = ttk.Label(self, text="Loading...")
-        self.loading_label.grid(row=3, column=0, columnspan=2)  # Assuming it spans two columns.
-        self.loading_label.grid_remove() 
+        self.loading_label.grid(row=4, column=2, sticky='w')
+        self.loading_label.grid_remove()
+
+    def create_race_tab(self):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text="Race")
+
+        # Radiobuttons for the "Race" tab
+        race_options = ["Option1", "Option2", "Option3"]  # Modify these options accordingly
+        self.race_var = tk.StringVar(value=race_options[0])
+
+        for i, option in enumerate(race_options):
+            ttk.Radiobutton(frame, text=option, variable=self.race_var, value=option).grid(row=i, column=0, sticky='w')
+
+    def create_age_tab(self):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text="Age")
+
+        # Radiobuttons for the "Age" tab
+        age_options = ["Option1", "Option2", "Option3"]  # Modify these options accordingly
+        self.age_var = tk.StringVar(value=age_options[0])
+
+        for i, option in enumerate(age_options):
+            ttk.Radiobutton(frame, text=option, variable=self.age_var, value=option).grid(row=i, column=0, sticky='w')
+
+    def create_emotion_tab(self):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text="Emotions")
+
+        # Radiobuttons for the "Emotions" tab
+        emotion_options = ["Option1", "Option2", "Option3"]  # Modify these options accordingly
+        self.emotion_var = tk.StringVar(value=emotion_options[0])
+
+        for i, option in enumerate(emotion_options):
+            ttk.Radiobutton(frame, text=option, variable=self.emotion_var, value=option).grid(row=i, column=0, sticky='w')
 
     
     def upload_dataset(self):

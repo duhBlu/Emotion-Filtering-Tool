@@ -73,8 +73,9 @@ class GalleryView(ttk.Frame):
                         print(f"Loaded {img_path}")
                     except Exception as e:
                         print(f"Error loading image {os.path.basename(img_path)}: {e}")
+                    # limits how many image will be shown for now TEMPORARY
                     self.c += 1
-                    if(self.c == 100):
+                    if(self.c == 500):
                         break
     
     def resize_image(self, image, max_width=300, max_height=300):

@@ -18,8 +18,8 @@ class MainWindow(tk.Frame):
         for i in range(5):  # Assuming you have 5 buttons
             self.grid_rowconfigure(i, weight=1)
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=20)
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
 
         # Dictionary to store views (frames) to show/hide
         self.views = {}
@@ -43,6 +43,8 @@ class MainWindow(tk.Frame):
         for idx, btn_text in enumerate(buttons):
             btn = ttk.Button(self, text=btn_text, command=lambda v=btn_text: self.change_view(v))
             btn.grid(row=idx, column=0, sticky='nsew')
+            
+        self.change_view('Data Upload & Image Selection')
 
     def change_view(self, view_name):
         if self.current_view:
@@ -54,3 +56,5 @@ class MainWindow(tk.Frame):
                 new_view.show()
             new_view.grid(row=0, column=1, rowspan=5, sticky='nsew')
             self.current_view = new_view
+            
+
