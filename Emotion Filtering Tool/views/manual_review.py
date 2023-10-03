@@ -15,6 +15,7 @@ class ManualReviewView(ttk.Frame):
         self.current_col = 0
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
+        self.grid_rowconfigure(2, weight=0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0) 
         self.create_widgets()
@@ -44,6 +45,16 @@ class ManualReviewView(ttk.Frame):
 
         self.reject_button = ttk.Button(self, text="Reject Selected", command=self.reject_images)
         self.reject_button.grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        
+        self.send_to_augment_button = ttk.Button(self, text="Send Accepted to Augmentation", command=self.send_to_augment)
+        self.send_to_augment_button.grid(row=2, column=0, padx=10, pady=10, sticky="")
+        
+    def send_to_augment(self):
+        self.master.views['Image Augmentation'].show_images(self.accepted_images)
+        self.master.change_view('Image Augmentation')
+        self.accepted_images = []
+        self.accepted_count = 0
+        self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
 
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -82,9 +93,9 @@ class ManualReviewView(ttk.Frame):
         img_label = ttk.Label(frame, image=photo)
         img_label.grid(row=0, column=1, sticky="ne")
         img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
-        self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
-        self.frame_images.bind("<Button-4>", self._on_mousewheel_up)
-        self.frame_images.bind("<Button-5>", self._on_mousewheel_down)
+        img_label.bind("<MouseWheel>", self._on_mousewheel)
+        img_label.bind("<Button-4>", self._on_mousewheel_up)
+        img_label.bind("<Button-5>", self._on_mousewheel_down)
         
         self.selected_images[idx] = False
 
