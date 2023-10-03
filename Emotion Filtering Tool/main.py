@@ -8,7 +8,7 @@ from ttkthemes import ThemedTk
 
 
 if __name__ == "__main__":
-    root = ThemedTk(theme="arc")
+    root = ThemedTk(theme="breeze")
     root.title('Emotion Filtering Tool')
 
     # Allow the main frame to grow and shrink with the window

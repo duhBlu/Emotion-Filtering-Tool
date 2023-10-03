@@ -135,7 +135,6 @@ class DataUploadView(tk.Frame):
         self.master.after(0, self._finish_extraction)
 
     def _finish_extraction(self):
-        self.loading_label.grid_remove()  # Hide the loading label
         self.process_button['text'] = "Process"
         self.process_button['state'] = tk.NORMAL
 

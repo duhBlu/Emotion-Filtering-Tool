@@ -49,7 +49,7 @@
     <Compile Include="views\data_upload_view.py" />
     <Compile Include="views\export_options_view.py" />
     <Compile Include="views\gallery_view.py" />
-    <Compile Include="views\image_review_view.py" />
+    <Compile Include="views\manual_review.py" />
     <Compile Include="views\main_window.py" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />

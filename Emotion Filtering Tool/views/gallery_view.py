@@ -16,6 +16,7 @@ class GalleryView(ttk.Frame):
         self.c = 0
         # Configure the main frame's row and column weights
         self.grid_rowconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0)  # This ensures scrollbar remains to the right
         self.create_widgets()
@@ -46,6 +47,10 @@ class GalleryView(ttk.Frame):
         # Configure rows and columns to adjust dynamically
         self.rowconfigure(0, weight=1)
         self.columnconfigure(0, weight=1)
+        
+        # Review button
+        self.review_button = ttk.Button(self, text="Send to Manual Review", command=self.send_to_review)
+        self.review_button.grid(row=1, column=0, padx=20, pady=20, sticky='e')
 
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -58,6 +63,11 @@ class GalleryView(ttk.Frame):
 
     def _on_mousewheel_down(self, event):
         self.canvas.yview_scroll(1, "units")
+        
+    def send_to_review(self):
+        self.master.views['Manual Image Review'].show_images(self.photo_images)
+        self.master.change_view('Manual Image Review')
+
         
     def load_images_from_folder(self, folder_paths):
         for folder_path in folder_paths:
@@ -75,7 +85,7 @@ class GalleryView(ttk.Frame):
                         print(f"Error loading image {os.path.basename(img_path)}: {e}")
                     # limits how many image will be shown for now TEMPORARY
                     self.c += 1
-                    if(self.c == 500):
+                    if(self.c == 100):
                         break
     
     def resize_image(self, image, max_width=300, max_height=300):

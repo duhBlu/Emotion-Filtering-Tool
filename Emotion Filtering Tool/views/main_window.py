@@ -5,7 +5,7 @@ from tkinter import ttk
 from ttkthemes import ThemedTk
 from views.data_upload_view import DataUploadView
 from views.gallery_view import GalleryView
-from views.image_review_view import ManualReviewView
+from views.manual_review import ManualReviewView
 from views.augmentation_view import AugmentationView
 from views.export_options_view import ExportOptionView
 
