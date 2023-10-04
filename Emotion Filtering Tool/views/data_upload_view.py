@@ -1,15 +1,9 @@
+from asyncio.windows_events import NULL
 from tkinter import ttk, filedialog
-from PIL import Image, ImageTk
 import tkinter as tk
 import threading
 import zipfile
 import os
-from PIL import Image
-import cv2
-
-import asyncio
-import aiofiles
-from io import BytesIO
 
 from views.gallery_view import GalleryView
 
@@ -17,10 +11,8 @@ from views.gallery_view import GalleryView
 
 
 class DataUploadView(tk.Frame):
-    def __init__(self, main_window, gallery_view=None, master=None):
-        super().__init__(master)
-        self.main_window = main_window
-        self.gallery_view = gallery_view 
+    def __init__(self, master=None):
+        super().__init__(master) 
         self.uploaded_files = []
         self.extracted_folder_paths = []
         self.create_widgets()
@@ -28,21 +20,21 @@ class DataUploadView(tk.Frame):
 
     def create_widgets(self):
         # Overall frame grid configuration
-        self.grid_rowconfigure(0, weight=0)  # Header label remains fixed size
-        self.grid_rowconfigure(1, weight=1)  # Upload button and listbox
-        self.grid_rowconfigure(2, weight=2)  # Notebook expands vertically
-        self.grid_rowconfigure(3, weight=0)  # Process button remains fixed size
+        self.grid_rowconfigure(0, weight=0)  
+        self.grid_rowconfigure(1, weight=1)  
+        self.grid_rowconfigure(2, weight=2) 
+        self.grid_rowconfigure(3, weight=0) 
 
         self.grid_columnconfigure(0, weight=1)  
         self.grid_columnconfigure(1, weight=3)  # This ensures the majority of horizontal space is occupied by the notebook
 
         # Header label
         self.header_label = ttk.Label(self, text="Filtering options")
-        self.header_label.grid(row=0, column=1, padx=10, pady=10, sticky='')
+        self.header_label.grid(row=1, column=1, padx=10, pady=10, sticky='')
 
         # Create the notebook (tabbed interface)
         self.notebook = ttk.Notebook(self)
-        self.notebook.grid(row=1, column=1, rowspan=1, padx=10, pady=10, sticky='nsew')
+        self.notebook.grid(row=2, column=1, rowspan=1, padx=10, pady=10, sticky='nsew')
 
         # Tabs for the notebook
         self.create_race_tab()
@@ -51,11 +43,11 @@ class DataUploadView(tk.Frame):
 
         # Upload button
         self.upload_button = ttk.Button(self, text="Upload Dataset", command=self.upload_dataset)
-        self.upload_button.grid(row=0, column=0, padx=10, pady=(2,0), sticky='sw')
+        self.upload_button.grid(row=1, column=0, padx=10, pady=(2,0), sticky='sw')
 
         # Image listbox
-        self.image_listbox = tk.Listbox(self)
-        self.image_listbox.grid(row=1, column=0, padx=10, pady=2, sticky='nsew')
+        self.dataset_filenames_listbox = tk.Listbox(self)
+        self.dataset_filenames_listbox.grid(row=2, column=0, padx=10, pady=2, sticky='nsew')
 
         # Process button
         self.process_button = ttk.Button(self, text="Process", command=self.process_images)
@@ -96,27 +88,25 @@ class DataUploadView(tk.Frame):
             ttk.Radiobutton(frame, text=option, variable=self.emotion_var, value=option).grid(row=i, column=0, sticky='w')
 
     
-    def upload_dataset(self): # Display the loading label
-        self.process_button['text'] = "loading..."
-        self.process_button['state'] = tk.DISABLED
+    def upload_dataset(self):
+        
         
         file_path = filedialog.askopenfilename(filetypes=[('ZIP files', '*.zip'), ('CSV files', '*.csv')])
         if file_path:
             filename = os.path.basename(file_path)
             self.uploaded_files.append(file_path)
-            self.image_listbox.insert(tk.END, filename)
+            self.dataset_filenames_listbox.insert(tk.END, filename)
 
             # Check if the uploaded file is a ZIP file and extract it
             if file_path.endswith('.zip'):
                 self.extract_zip_file(file_path)
+                self.process_button['text'] = "loading..."
+                self.process_button['state'] = tk.DISABLED
 
 
     def process_images(self):
-        # Test adding images to gallery view. This function should talk to the nn to filter the images
-        if not self.gallery_view:
-            self.gallery_view = GalleryView(master=self.master)
-        self.main_window.change_view('Gallery')
-        self.gallery_view.load_images_from_folder(self.extracted_folder_paths)
+        self.master.views['Gallery'].load_images_from_folder(self.extracted_folder_paths)
+        self.master.change_view('Gallery')
         # we can pass the extracted image paths into the nn to be loaded + filtered
         # then the candidate paths will then be sent into the gallery view
 

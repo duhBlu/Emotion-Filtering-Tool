@@ -1,8 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
-import asyncio
-import aiofiles
 from io import BytesIO
 import os
 

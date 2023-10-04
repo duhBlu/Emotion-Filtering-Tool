@@ -33,8 +33,8 @@ class MainWindow(tk.Frame):
         self.current_view = None
 
         # Create the view frames but don't display them yet
+        self.views['Data Upload & Image Selection'] = DataUploadView(self)
         self.views['Gallery'] = GalleryView(self)
-        self.views['Data Upload & Image Selection'] = DataUploadView(self, gallery_view=self.views['Gallery'])
         self.views['Manual Image Review'] = ManualReviewView(self)
         self.views['Image Augmentation'] = AugmentationView(self)
         self.views['Dataset Export Options'] = ExportOptionView(self)
@@ -58,8 +58,6 @@ class MainWindow(tk.Frame):
 
         new_view = self.views.get(view_name)
         if new_view:
-            if hasattr(new_view, 'show'):
-                new_view.show()
             # Using the container frame to grid the new_view
             new_view.grid(in_=self.view_container, row=0, column=0, sticky='nsew')
             self.current_view = new_view
