@@ -34,17 +34,10 @@
     </Interpreter>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="models\" />
-    <Folder Include="controllers\" />
     <Folder Include="views\" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="controllers\image_controller.py" />
-    <Compile Include="controllers\main_controller.py" />
     <Compile Include="main.py" />
-    <Compile Include="models\image_model.py" />
-    <Compile Include="models\user_settings_model.py" />
-    <Compile Include="temp.py" />
     <Compile Include="views\augmentation_view.py" />
     <Compile Include="views\data_upload_view.py" />
     <Compile Include="views\export_options_view.py" />
