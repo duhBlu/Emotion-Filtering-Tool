@@ -1,5 +1,3 @@
-# The main UI window that houses all other views
-
 import tkinter as tk
 from tkinter import ttk
 from ttkthemes import ThemedTk
@@ -8,7 +6,6 @@ from views.gallery_view import GalleryView
 from views.manual_review import ManualReviewView
 from views.augmentation_view import AugmentationView
 from views.export_options_view import ExportOptionView
-
 
 class MainWindow(tk.Frame):
     def __init__(self, master=None):
@@ -39,7 +36,15 @@ class MainWindow(tk.Frame):
         self.views['Image Augmentation'] = AugmentationView(self)
         self.views['Dataset Export Options'] = ExportOptionView(self)
 
-        # Create buttons on the left side
+        # Create ttk Style for customizing buttons
+        self.style = ttk.Style()
+        self.style.configure(
+            "Custom.TButton",  # Style name
+            font=("Arial", 12),  # Set the font
+            foreground="blue"  # Set the foreground color
+        )
+
+        # Create buttons on the left side with the custom style
         buttons = ['Data Upload & Image Selection', 
                    'Gallery', 
                    'Manual Image Review', 
@@ -47,7 +52,12 @@ class MainWindow(tk.Frame):
                    'Dataset Export Options']
 
         for idx, btn_text in enumerate(buttons):
-            btn = ttk.Button(self, text=btn_text, command=lambda v=btn_text: self.change_view(v))
+            btn = ttk.Button(
+                self, 
+                text=btn_text, 
+                command=lambda v=btn_text: self.change_view(v), 
+                style="Custom.TButton"  # Apply the custom style
+            )
             btn.grid(row=idx, column=0, sticky='nsew')
 
         self.change_view('Data Upload & Image Selection')
@@ -61,4 +71,14 @@ class MainWindow(tk.Frame):
             # Using the container frame to grid the new_view
             new_view.grid(in_=self.view_container, row=0, column=0, sticky='nsew')
             self.current_view = new_view
+
+if __name__ == "__main__":
+    root = ThemedTk(theme="breeze")
+    root.title('Emotion Filtering Tool')
+
+    main_win = MainWindow(master=root)
+    main_win.grid(row=0, column=0, sticky='nsew')
+    
+    root.mainloop()
+
 

@@ -11,7 +11,7 @@ class ManualReviewView(ttk.Frame):
         self.accepted_count = 0  # count of accepted images
         self.selected_images = defaultdict(bool)
         self.image_frames = {}
-        self.current_row = 0
+        self.current_row = 0 
         self.current_col = 0
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)

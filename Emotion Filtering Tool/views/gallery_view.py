@@ -103,12 +103,11 @@ class GalleryView(ttk.Frame):
     def add_image_to_gallery(self, image):
         try:
             photo = ImageTk.PhotoImage(self.resize_image(image))
-            self.photo_images.append(photo)
+            self.photo_images.append(photo)  # Store a reference to the PhotoImage object
             img_label = ttk.Label(self.frame_images, image=photo)
             img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)  
             img_label.bind("<MouseWheel>", self._on_mousewheel)
             img_label.bind("<Button-4>", self._on_mousewheel_up)
-            img_label.bind("<Button-5>", self._on_mousewheel_down)
         except Exception as e:
             print(f"Error displaying image: {e}")
     
@@ -122,6 +121,7 @@ class GalleryView(ttk.Frame):
     
         self.update()  # Force the application to update the GUI
         self.canvas.update_idletasks()
+
 
 
 
