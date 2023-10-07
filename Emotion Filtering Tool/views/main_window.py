@@ -39,9 +39,9 @@ class MainWindow(tk.Frame):
         # Create ttk Style for customizing buttons
         self.style = ttk.Style()
         self.style.configure(
-            "Custom.TButton",  # Style name
-            font=("Arial", 12),  # Set the font
-            foreground="blue"  # Set the foreground color
+            "Custom.TButton",
+            font=("Arial", 12), 
+            foreground="blue"
         )
 
         # Create buttons on the left side with the custom style
@@ -72,13 +72,18 @@ class MainWindow(tk.Frame):
             new_view.grid(in_=self.view_container, row=0, column=0, sticky='nsew')
             self.current_view = new_view
 
+
 if __name__ == "__main__":
     root = ThemedTk(theme="breeze")
     root.title('Emotion Filtering Tool')
 
+    # Allow the main frame to grow and shrink with the window
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_columnconfigure(0, weight=1)
+
+    # Create the main window frame
     main_win = MainWindow(master=root)
     main_win.grid(row=0, column=0, sticky='nsew')
     
     root.mainloop()
-
 

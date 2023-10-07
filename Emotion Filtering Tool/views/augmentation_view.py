@@ -31,8 +31,6 @@ class AugmentationView(ttk.Frame):
 
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
-        self.frame_images.bind("<Button-4>", self._on_mousewheel_up)
-        self.frame_images.bind("<Button-5>", self._on_mousewheel_down)
 
         self.augment_button = ttk.Button(self, text="Process Selected", command=self.augment_images)
         self.augment_button.grid(row=1, column=0, padx=10, pady=10, sticky="w")
@@ -42,12 +40,6 @@ class AugmentationView(ttk.Frame):
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-
-    def _on_mousewheel_up(self, event):
-        self.canvas.yview_scroll(-1, "units")
-
-    def _on_mousewheel_down(self, event):
-        self.canvas.yview_scroll(1, "units")
         
     def show_images(self, photo_images):
         self.photo_images = photo_images
@@ -72,8 +64,6 @@ class AugmentationView(ttk.Frame):
         img_label.grid(row=0, column=1, sticky="ne")
         img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
         img_label.bind("<MouseWheel>", self._on_mousewheel)
-        img_label.bind("<Button-4>", self._on_mousewheel_up)
-        img_label.bind("<Button-5>", self._on_mousewheel_down)
         
         self.selected_images[idx] = False
 
@@ -122,9 +112,6 @@ class AugmentationView(ttk.Frame):
         # StringVar for the label text
         label_text = tk.StringVar()
     
-        # Label to display "image x of x"
-        progress_label = ttk.Label(button_frame, textvariable=label_text)
-        progress_label.grid(row=0, column=1)
     
         # Add accept and reject buttons
         accept_button = ttk.Button(button_frame, text="Accept", command=lambda: self.accept_augment(current_idx, img_label, augment_window, label_text))
@@ -140,13 +127,11 @@ class AugmentationView(ttk.Frame):
         current_image = 0
         total_images = len(selected_indices)
     
-        # Update the label text
-        label_text.set(f"Image {current_image} of {total_images}")
-    
-        # Add other methods to actually display the images, etc.
-
-
-
+      
+        # Label to display "image x of x"
+        progress_label = ttk.Label(button_frame, textvariable=label_text)
+        progress_label.grid(row=0, column=1)
+        label_text.set(f"Image {current_image + 1} of {total_images}")
         
         def show_next_image(idx):
             nonlocal img_label

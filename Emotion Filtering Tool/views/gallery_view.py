@@ -36,8 +36,6 @@ class GalleryView(ttk.Frame):
 
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
-        self.frame_images.bind("<Button-4>", self._on_mousewheel_up)
-        self.frame_images.bind("<Button-5>", self._on_mousewheel_down)
 
         self.status_label = ttk.Label(self, text="")
         self.status_label.grid(row=1, column=0, columnspan=2, sticky="w")
@@ -55,12 +53,6 @@ class GalleryView(ttk.Frame):
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-
-    def _on_mousewheel_up(self, event):
-        self.canvas.yview_scroll(-1, "units")
-
-    def _on_mousewheel_down(self, event):
-        self.canvas.yview_scroll(1, "units")
         
     def send_to_review(self):
         self.master.views['Manual Image Review'].show_images(self.photo_images)
@@ -107,7 +99,6 @@ class GalleryView(ttk.Frame):
             img_label = ttk.Label(self.frame_images, image=photo)
             img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)  
             img_label.bind("<MouseWheel>", self._on_mousewheel)
-            img_label.bind("<Button-4>", self._on_mousewheel_up)
         except Exception as e:
             print(f"Error displaying image: {e}")
     

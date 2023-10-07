@@ -61,7 +61,7 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Age")
 
         # Radiobuttons for the "Age" tab
-        age_options = ["Kids", "Adult", "Elder"]  # Modify these options accordingly
+        age_options = ["Kids", "Adult", "Elder"]
         self.age_var = tk.StringVar(value=age_options[0])
 
         for i, option in enumerate(age_options):
@@ -72,7 +72,7 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Emotions")
 
         # Radiobuttons for the "Emotions" tab
-        emotion_options = ["Happy", "Sad", "Angry", "Surprised", "Confused"]  # Modify these options accordingly
+        emotion_options = ["Angry", "Crying", "Sad", "Surprised", "Confused", "Shy"] 
         self.emotion_var = tk.StringVar(value=emotion_options[0])
 
         for i, option in enumerate(emotion_options):

@@ -34,8 +34,6 @@ class ManualReviewView(ttk.Frame):
 
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
-        self.frame_images.bind("<Button-4>", self._on_mousewheel_up)
-        self.frame_images.bind("<Button-5>", self._on_mousewheel_down)
 
         self.accept_button = ttk.Button(self, text="Accept Selected", command=self.accept_images)
         self.accept_button.grid(row=1, column=0, padx=10, pady=10, sticky="w")
@@ -65,12 +63,6 @@ class ManualReviewView(ttk.Frame):
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
 
-    def _on_mousewheel_up(self, event):
-        self.canvas.yview_scroll(-1, "units")
-
-    def _on_mousewheel_down(self, event):
-        self.canvas.yview_scroll(1, "units")
-
     def show_images(self, photo_images):
         self.photo_images = photo_images
         self.current_row = 0
@@ -94,9 +86,6 @@ class ManualReviewView(ttk.Frame):
         img_label.grid(row=0, column=1, sticky="ne")
         img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
         img_label.bind("<MouseWheel>", self._on_mousewheel)
-        img_label.bind("<Button-4>", self._on_mousewheel_up)
-        img_label.bind("<Button-5>", self._on_mousewheel_down)
-        
         self.selected_images[idx] = False
 
         self.current_col += 1
