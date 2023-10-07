@@ -63,14 +63,6 @@ class ManualReviewView(ttk.Frame):
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
 
-    def show_images(self, photo_images):
-        self.photo_images = photo_images
-        self.current_row = 0
-        self.current_col = 0
-        self.selected_images.clear()
-
-        for idx, photo in enumerate(self.photo_images):
-            self.add_image_to_review(idx, photo)
 
     def add_image_to_review(self, idx, photo):
         frame = ttk.Frame(self.frame_images, relief="flat")
@@ -116,11 +108,31 @@ class ManualReviewView(ttk.Frame):
             if accept and selected:
                 self.accepted_images.append(self.photo_images[idx])
                 self.accepted_count += 1
-                self.image_frames[idx].destroy()  # Remove the frame from the grid
-            elif not accept and selected:
-                self.image_frames[idx].destroy()  # Remove the frame from the grid
-            else:
+            elif not selected:
                 new_photo_images.append(self.photo_images[idx])
-                
-        self.show_images(new_photo_images)
+
+        self.show_images(new_photo_images)  # Refresh the view with remaining images
         self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
+
+    def show_images(self, photo_images):
+        # Destroy all existing frames
+        for frame in self.frame_images.winfo_children():
+            frame.destroy()
+
+        # Clear existing data structures
+        self.photo_images = []
+        self.selected_images.clear()
+        self.image_frames.clear()
+        self.current_row = 0
+        self.current_col = 0
+
+        # Show new images
+        self.photo_images = photo_images
+        for idx, photo in enumerate(self.photo_images):
+            self.add_image_to_review(idx, photo)
+
+        # Update canvas scroll region
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+    
+        

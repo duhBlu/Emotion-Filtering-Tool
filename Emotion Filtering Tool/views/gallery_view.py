@@ -11,7 +11,6 @@ class GalleryView(ttk.Frame):
         self.photo_images = []
         self.current_row = 0
         self.current_col = 0
-        self.c = 0
         # Configure the main frame's row and column weights
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
@@ -59,24 +58,16 @@ class GalleryView(ttk.Frame):
         self.master.change_view('Manual Image Review')
 
         
-    def load_images_from_folder(self, folder_paths):
-        for folder_path in folder_paths:
-            for img_file in os.listdir(folder_path):
-                img_path = os.path.join(folder_path, img_file)
-                if os.path.isfile(img_path) and img_path.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    try:
-                        with open(img_path, 'rb') as f:
-                            image_data = f.read()
-                        image = Image.open(BytesIO(image_data))
-                        self.resize_image(image)
-                        self.add_image_to_gallery(image)
-                        print(f"Loaded {img_path}")
-                    except Exception as e:
-                        print(f"Error loading image {os.path.basename(img_path)}: {e}")
-                    # limits how many image will be shown for now TEMPORARY
-                    self.c += 1
-                    if(self.c == 100):
-                        break
+    def load_single_image(self, image_path):
+        try:
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+            image = Image.open(BytesIO(image_data))
+            self.resize_image(image)
+            self.add_image_to_gallery(image)
+            print(f"Loaded {image_path}")
+        except Exception as e:
+            print(f"Error loading image {os.path.basename(image_path)}: {e}")
     
     def resize_image(self, image, max_width=300, max_height=300):
         # Resize image while maintaining its aspect ratio

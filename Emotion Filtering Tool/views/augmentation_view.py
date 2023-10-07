@@ -40,7 +40,8 @@ class AugmentationView(ttk.Frame):
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-        
+
+
     def show_images(self, photo_images):
         self.photo_images = photo_images
         self.current_row = 0
@@ -83,89 +84,88 @@ class AugmentationView(ttk.Frame):
     def toggle_selection(self, idx, var):
         self.selected_images[idx] = bool(var.get())
         
-
     def augment_images(self):
-        # Create Toplevel to show images one by one
         augment_window = tk.Toplevel(self)
         augment_window.title("Augmentation")
     
-        # Frame for augmentation options on the left side
         option_frame = ttk.Frame(augment_window)
         option_frame.grid(row=0, column=0, sticky="nsew")
     
-        # Add augmentation options (for demonstration, using a label)
         option_label = ttk.Label(option_frame, text="Add augmentation options here")
         option_label.pack(pady=10)
     
-        # Frame for the image and accept/reject buttons in the center
         image_frame = ttk.Frame(augment_window)
         image_frame.grid(row=0, column=1, sticky="nsew")
     
-        # Label to display the image
         img_label = ttk.Label(image_frame)
         img_label.pack()
     
-        # Frame for accept/reject buttons below the image
         button_frame = ttk.Frame(image_frame)
         button_frame.pack(pady=5)
     
-        # StringVar for the label text
-        label_text = tk.StringVar()
     
-    
-        # Add accept and reject buttons
-        accept_button = ttk.Button(button_frame, text="Accept", command=lambda: self.accept_augment(current_idx, img_label, augment_window, label_text))
-        accept_button.grid(row=0, column=0)
-    
-        reject_button = ttk.Button(button_frame, text="Reject", command=lambda: self.reject_augment(current_idx, img_label, augment_window, label_text))
-        reject_button.grid(row=0, column=2)
-    
-        # Loop through selected images
-        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
-    
-        # Initialize counters (you'd probably update these in your accept/reject functions)
-        current_image = 0
-        total_images = len(selected_indices)
-    
-      
         # Label to display "image x of x"
+        label_text = tk.StringVar()
         progress_label = ttk.Label(button_frame, textvariable=label_text)
         progress_label.grid(row=0, column=1)
-        label_text.set(f"Image {current_image + 1} of {total_images}")
-        
-        def show_next_image(idx):
-            nonlocal img_label
-            # Display image and apply augmentation here
-            # For demonstration, just displaying the image
-            img_label.config(image=self.photo_images[idx])
-            img_label.image = self.photo_images[idx]
-            
-        if selected_indices:
-            current_idx = selected_indices.pop(0)
-            show_next_image(current_idx)
-            
-    def accept_augment(self, current_idx, img_label, augment_window):
-        # Store the augmented image, update view etc.
-        # Move to next image
+    
+        # Add accept and reject buttons
+        accept_button = ttk.Button(button_frame, text="Accept", command=lambda: self.accept_augment(img_label, augment_window, label_text))
+        accept_button.grid(row=0, column=0)
+
+        reject_button = ttk.Button(button_frame, text="Cancel", command=lambda: self.cancel_augment(img_label, augment_window, label_text))
+        reject_button.grid(row=0, column=2)
+
+    
         selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
-        if selected_indices:
-            current_idx = selected_indices.pop(0)
-            self.show_next_image(current_idx, img_label, augment_window)
+    
+        # Initialize counters and make them instance variables
+        self.current_image = 1
+        self.total_images = len(selected_indices)
+        self.selected_indices_queue = selected_indices
+    
+        # Update the label text
+        label_text.set(f"Image {self.current_image} of {self.total_images}")
+
+        # Show the first image if there is any selected
+        if self.selected_indices_queue:
+            first_idx = self.selected_indices_queue.pop(0)
+            self.show_next_image(first_idx, img_label, augment_window)
+            
+    def accept_augment(self, img_label, augment_window, label_text):
+        # Increment the counter for the currently processed image
+        self.current_image += 1
+        # Update the label text
+        label_text.set(f"Image {self.current_image} of {self.total_images}")
+
+        # Implement code to store/save this image as 'accepted'
+
+        # Display the next image if any are left
+        if self.selected_indices_queue:
+            next_idx = self.selected_indices_queue.pop(0)
+            self.show_next_image(next_idx, img_label, augment_window)
         else:
             # Close the Toplevel when done
             augment_window.destroy()
 
-        
-    def reject_augment(self, current_idx, img_label, augment_window):
-        # Skip this image, do not store
-        # Move to next image
-        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
-        if selected_indices:
-            current_idx = selected_indices.pop(0)
-            self.show_next_image(current_idx, img_label, augment_window)
+
+    def cancel_augment(self, img_label, augment_window, label_text):
+        # Increment the counter for the currently processed image
+        self.current_image += 1
+        # Update the label text
+        label_text.set(f"Image {self.current_image} of {self.total_images}")
+
+        # Implement code to mark this image as 'rejected'
+        # For example, you could add it back to a list for later review
+
+        # Display the next image if any are left
+        if self.selected_indices_queue:
+            next_idx = self.selected_indices_queue.pop(0)
+            self.show_next_image(next_idx, img_label, augment_window)
         else:
             # Close the Toplevel when done
             augment_window.destroy()
+
             
     def show_next_image(self, idx, img_label, augment_window):
         # Display next image and apply augmentation here
