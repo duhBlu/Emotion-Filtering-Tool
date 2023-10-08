@@ -2,20 +2,21 @@ import tkinter as tk
 from tkinter import ttk
 from collections import defaultdict
 from PIL import Image, ImageTk
+import tkinter.messagebox as messagebox
 
 class AugmentationView(ttk.Frame):
-    def __init__(self, parent, shared_data, **kwargs):
+    def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
-        self.shared_data = shared_data
-        self.photo_images = []
-        self.selected_images = defaultdict(bool)
-        self.image_frames = {}
-        self.current_row = 0
-        self.current_col = 0
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0)
+        self.current_row = 0
+        self.current_col = 0
+        self.photo_images = []
+        self.selected_images = defaultdict(bool)
+        self.image_frames = {}
+        self.changed_images = set()
         self.original_images = {} 
         self.create_widgets()
 
@@ -47,7 +48,7 @@ class AugmentationView(ttk.Frame):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
 
     def save_augmented_images(self):
-        self.shared_data['augmented_images'] = self.photo_images
+        self.master.views['Dataset Export Options'].receive_images(self.photo_images)
         self.photo_images = []
         self.master.change_view('Dataset Export Options')
             
@@ -92,101 +93,130 @@ class AugmentationView(ttk.Frame):
         self.toggle_selection(idx, var)
 
     def toggle_selection(self, idx, var):
-        self.selected_images[idx] = bool(var.get())
+        self.selected_images[idx] = bool(var.get())          
         
+    # Augmentation Window and Functions
     def augment_images(self):
+        # Initialize counters and make them instance variables
+        self.current_image = 0
+        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
+        self.total_images = len(selected_indices)
+        self.selected_indices_queue = selected_indices
+        
+        if self.total_images == 0:
+            messagebox.showinfo("No Images Selected", "Please select at least one image to process.")
+            return 
+        
         augment_window = tk.Toplevel(self)
         augment_window.title("Augmentation")
+        
+        # Set column weights (relative widths)
+        # Set column and row weights for augment_window
+        augment_window.grid_columnconfigure(0, weight=1)
+        augment_window.grid_columnconfigure(1, weight=3)  # Give image frame more space
+        augment_window.grid_rowconfigure(0, weight=1)
     
         option_frame = ttk.Frame(augment_window)
         option_frame.grid(row=0, column=0, sticky="nsew")
     
+        # Set column and row weights for option_frame
+        option_frame.grid_columnconfigure(0, weight=1)
+        option_frame.grid_rowconfigure((0, 1), weight=1)
+
         option_label = ttk.Label(option_frame, text="Add augmentation options here")
-        option_label.pack(pady=10)
+        option_label.grid(row=0, column=0, sticky="n", pady=10)  
     
+        change_button = ttk.Button(option_frame, text="Mark as Changed", command=self.mark_as_changed)
+        change_button.grid(row=1, column=0, pady=5)  
+
         image_frame = ttk.Frame(augment_window)
         image_frame.grid(row=0, column=1, sticky="nsew")
     
+        # Set column and row weights for image_frame
+        image_frame.grid_columnconfigure((0, 1, 2), weight=1)  # Allow all columns to expand
+        image_frame.grid_rowconfigure(0, weight=1)  # Allow image row to expand
+    
         img_label = ttk.Label(image_frame)
-        img_label.pack()
-    
+        img_label.grid(row=0, column=1, columnspan=3, sticky="") 
+
+
         button_frame = ttk.Frame(image_frame)
-        button_frame.pack(pady=5)
-    
+        button_frame.grid(row=1, column=1, columnspan=3, sticky="", pady=5)   
     
         # Label to display "image x of x"
         label_text = tk.StringVar()
         progress_label = ttk.Label(button_frame, textvariable=label_text)
-        progress_label.grid(row=0, column=1)
-    
-        # Add accept and reject buttons
-        accept_button = ttk.Button(button_frame, text="Accept", command=lambda: self.accept_augment(img_label, augment_window, label_text))
-        accept_button.grid(row=0, column=0)
+        progress_label.grid(row=1, column=1)
+        label_text.set(f"Image {self.current_image + 1} of {self.total_images}")
 
         reject_button = ttk.Button(button_frame, text="Cancel", command=lambda: self.cancel_augment(img_label, augment_window, label_text))
-        reject_button.grid(row=0, column=2)
+        reject_button.grid(row=1, column=0, padx=(0, 5))
+        
+        accept_button = ttk.Button(button_frame, text="Accept", command=lambda: self.accept_augment(img_label, augment_window, label_text))
+        accept_button.grid(row=1, column=2, padx=5)
 
-    
-        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
-    
-        # Initialize counters and make them instance variables
-        self.current_image = 1
-        self.total_images = len(selected_indices)
-        self.selected_indices_queue = selected_indices
-    
-        # Update the label text
-        label_text.set(f"Image {self.current_image} of {self.total_images}")
-
+        self.reject_button = reject_button
+        self.accept_button = accept_button
+        
         # Show the first image if there is any selected
         if self.selected_indices_queue:
             first_idx = self.selected_indices_queue.pop(0)
             self.show_next_image(first_idx, img_label, augment_window)
             
-        
-    def accept_augment(self, img_label, augment_window, label_text):
-        # Increment the counter for the currently processed image
-        self.current_image += 1
-        # Update the label text
-        label_text.set(f"Image {self.current_image} of {self.total_images}")
-
-        augmented_image_pil = self.original_images[self.current_image - 1]  # Replace with actual augmented image
-        augmented_image = ImageTk.PhotoImage(image=augmented_image_pil)
-
-        # Update the photo_images list with the augmented image
-        self.photo_images[self.current_image - 1] = augmented_image
-
-        # Update the photo_images list with the augmented image
-        self.photo_images[self.current_image - 1] = augmented_image
-
-        # Display the next image if any are left
-        if self.selected_indices_queue:
-            next_idx = self.selected_indices_queue.pop(0)
-            self.show_next_image(next_idx, img_label, augment_window)
+        self.update_buttons()
+            
+    def mark_as_changed(self):
+            # Mark the current image as changed
+            self.changed_images.add(self.current_image)
+            # Update the button texts and states
+            self.update_buttons()
+            
+    def update_buttons(self):
+        # No arguments are needed as we saved button references as instance variables
+        if self.current_image in self.changed_images:
+            self.reject_button['state'] = tk.NORMAL
+            self.accept_button['text'] = "Accept"
         else:
-            augment_window.destroy()
+            self.reject_button['state'] = tk.DISABLED
+            self.accept_button['text'] = "Skip" 
+            
+    def accept_augment(self, img_label, augment_window, label_text):
+        if self.current_image < self.total_images:
+            label_text.set(f"Image {self.current_image + 1} of {self.total_images}")
 
+            augmented_image_pil = self.original_images[self.current_image - 1]  # Replace with actual augmented image
+            augmented_image = ImageTk.PhotoImage(image=augmented_image_pil)
+
+            # Update the photo_images list with the augmented image
+            self.photo_images[self.current_image - 1] = augmented_image
+
+            # Display the next image if any are left
+            if self.selected_indices_queue:
+                next_idx = self.selected_indices_queue.pop(0)
+                self.show_next_image(next_idx, img_label, augment_window)
+                self.update_buttons()
+            else:
+                augment_window.destroy()
+        else:
+            # No more images to process, destroy the window
+            augment_window.destroy()
+        
+        
 
     def cancel_augment(self, img_label, augment_window, label_text):
-        # Increment the counter for the currently processed image
-        self.current_image += 1
-        # Update the label text
-        label_text.set(f"Image {self.current_image} of {self.total_images}")
-
         # Restore the original image from the stored dictionary
         original_pil_image = self.original_images[self.current_image - 1]
         original_tk_image = ImageTk.PhotoImage(image=original_pil_image)
         self.photo_images[self.current_image - 1] = original_tk_image
-
-        # Display the next image if any are left
-        if self.selected_indices_queue:
-            next_idx = self.selected_indices_queue.pop(0)
-            self.show_next_image(next_idx, img_label, augment_window)
-        else:
-            augment_window.destroy()
+        self.changed_images.remove(self.current_image)
+        self.update_buttons()
 
             
     def show_next_image(self, idx, img_label, augment_window):
         # Display next image and apply augmentation here
         # For demonstration, just displaying the image
+        self.current_image += 1
         img_label.config(image=self.photo_images[idx])
         img_label.image = self.photo_images[idx]
+        
+        self.update_buttons()

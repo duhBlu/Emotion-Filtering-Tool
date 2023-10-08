@@ -13,6 +13,12 @@ import csv
 import xml.etree.ElementTree as ET
 import time
 
+bg1 = "#bfbfbf"
+bg2 = "#e5e5e5"
+darker_bg = "#1f1f1f"
+secondary_bg = "#1e1e1e"
+text_color = "#F0F0F0"
+
 class DataUploadView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
@@ -20,8 +26,13 @@ class DataUploadView(ttk.Frame):
         self.extracted_folders_dict = {}
         self.create_widgets()
 
+
     
     def create_widgets(self):
+        self.row_frames = [tk.Frame(self, bg=color) for color in [bg1]]
+        for i, row_frame in enumerate(self.row_frames):
+            row_frame.grid(row=i, columnspan=2, sticky='nsew')
+            
         # Overall frame grid configuration
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
@@ -33,7 +44,6 @@ class DataUploadView(ttk.Frame):
 
         # Header label
         label_font = ("Helvetica", 14)
-
         self.header_label = ttk.Label(self, text="Filtering options", font=label_font)
         self.header_label.grid(row=1, column=1, padx=10, pady=(20, 10), sticky='')
 
@@ -51,7 +61,7 @@ class DataUploadView(ttk.Frame):
         self.upload_button.grid(row=1, column=0, padx=10, pady=(2, 0), sticky='sw')
 
         # Image listbox
-        self.dataset_filenames_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE)
+        self.dataset_filenames_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE, bg=bg2)
         self.dataset_filenames_listbox.grid(row=2, column=0, padx=10, pady=2, sticky='nsew')
 
         style = ttk.Style()

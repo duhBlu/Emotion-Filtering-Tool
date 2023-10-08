@@ -31,16 +31,13 @@ class MainWindow(tk.Frame):
         # Dictionary to store views (frames) to show/hide
         self.views = {}
         self.current_view = None
-        self.shared_data = {
-            'augmented_images': []
-        }
         
         # Create the view frames but don't display them yet
         self.views['Data Upload & Image Selection'] = DataUploadView(self)
         self.views['Gallery'] = GalleryView(self)
         self.views['Manual Image Review'] = ManualReviewView(self)
-        self.views['Image Augmentation'] = AugmentationView(self, self.shared_data)
-        self.views['Dataset Export Options'] = ExportOptionView(self, self.shared_data)
+        self.views['Image Augmentation'] = AugmentationView(self)
+        self.views['Dataset Export Options'] = ExportOptionView(self)
 
         # Create ttk Style for customizing buttons
         self.style = ttk.Style()
