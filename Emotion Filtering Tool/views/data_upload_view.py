@@ -12,6 +12,7 @@ import json
 import csv
 import xml.etree.ElementTree as ET
 import time
+import tkinter.messagebox as messagebox
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -24,6 +25,7 @@ class DataUploadView(ttk.Frame):
         super().__init__(master)
         self.uploaded_files = []
         self.extracted_folders_dict = {}
+        self.image_tag_mappings = {}
         self.create_widgets()
 
 
@@ -227,21 +229,35 @@ class DataUploadView(ttk.Frame):
         self.process_button['state'] = tk.NORMAL    
 
     '''
-    
     PROCESSING IMAGES
         - Will send the folder paths to the Neural networks function (WIP)
         - Continues processing images in the background,
           and show accepted candidates in the gallery view
     '''
     def start_processing_images(self):
-        # This function will start a new thread that runs process_images()
+        selected_indices = self.dataset_filenames_listbox.curselection()
+        if not selected_indices:
+            # No datasets selected, show a message to the user
+            messagebox.showinfo("No Datasets Selected", "Please select a dataset to process.")
+            return
         threading.Thread(target=self.process_images).start()
         self.master.change_view('Gallery')
 
     def neural_network_filter(self, image_path):
         # This function should actually call the neural network to decide if an image is a candidate or not
         # Right now it just simulates the behavior with a random choice.
-        return random.choice([True, False])
+        is_accepted = random.choice([True, False])
+        
+        # If the image is accepted, add the tags
+        if is_accepted:
+            tags = [
+                self.emotion_var.get(),
+                self.age_var.get(),
+                self.race_var.get()
+            ]
+            self.image_tag_mappings[image_path] = tags  # Associate the tags with this image
+        print(self.image_tag_mappings)  
+        return is_accepted
 
     def process_images(self):
         # Get the indices of selected items
@@ -264,7 +280,6 @@ class DataUploadView(ttk.Frame):
         # Create a new "candidates" folder
         os.mkdir(candidate_folder)
 
-        # Process only the selected items
         for index in selected_indices:
             folder_path = all_extracted_folders[index]  # Use indexed folder path from all_extracted_folders
 
@@ -281,7 +296,7 @@ class DataUploadView(ttk.Frame):
                     # Copy it to the "candidates" folder
                     candidate_image_path = os.path.join(candidate_folder, img_file)
                     shutil.copy(img_path, candidate_image_path)
-
                     # Send this image path to GalleryView to load and display
-                    self.master.views['Gallery'].load_single_image(candidate_image_path)
+                    # Only send the mapping of the current image
+                    self.master.views['Gallery'].receive_data(candidate_folder, {candidate_image_path: self.image_tag_mappings.get(img_path, [])})
 

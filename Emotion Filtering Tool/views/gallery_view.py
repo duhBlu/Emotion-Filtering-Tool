@@ -3,12 +3,14 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 from io import BytesIO
 import os
+from tkinter import NW, NE
 
 class GalleryView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.initialized = True
-        self.photo_images = []
+        self.candidate_images = []
+        self.image_tag_mappings = {}
         self.current_row = 0
         self.current_col = 0
         # Configure the main frame's row and column weights
@@ -54,20 +56,30 @@ class GalleryView(ttk.Frame):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
         
     def send_to_review(self):
-        self.master.views['Manual Image Review'].show_images(self.photo_images)
+        self.master.views['Manual Image Review'].show_images(self.candidate_images)
         self.master.change_view('Manual Image Review')
 
+    def receive_data(self, candidate_folder, image_tag_mapping):
+        self.candidate_folder = candidate_folder
+        self.image_tag_mapping = image_tag_mapping
+        # Assuming the image path is the key in the image_tag_mapping dictionary
+        print(list(image_tag_mapping.keys())[0])
+        image_path = list(image_tag_mapping.keys())[0] if image_tag_mapping else None
+        if image_path:
+            self.load_single_image(image_path)
         
     def load_single_image(self, image_path):
         try:
             with open(image_path, 'rb') as f:
                 image_data = f.read()
             image = Image.open(BytesIO(image_data))
-            self.resize_image(image)
-            self.add_image_to_gallery(image)
+            resized_image = self.resize_image(image)
+            tags = self.image_tag_mapping.get(image_path, [])  # Fetch tags for this image if any
+            self.add_image_to_gallery(resized_image, tags)
             print(f"Loaded {image_path}")
         except Exception as e:
             print(f"Error loading image {os.path.basename(image_path)}: {e}")
+
     
     def resize_image(self, image, max_width=300, max_height=300):
         # Resize image while maintaining its aspect ratio
@@ -83,24 +95,32 @@ class GalleryView(ttk.Frame):
             image = image.resize((new_width, new_height))
         return image
 
-    def add_image_to_gallery(self, image):
+    def add_image_to_gallery(self, image, tags):
         try:
-            photo = ImageTk.PhotoImage(self.resize_image(image))
-            self.photo_images.append(photo)  # Store a reference to the PhotoImage object
+            photo = ImageTk.PhotoImage(image)
+            self.candidate_images.append(photo)  # Store a reference to the PhotoImage object
+            
             img_label = ttk.Label(self.frame_images, image=photo)
             img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)  
             img_label.bind("<MouseWheel>", self._on_mousewheel)
+            print(tags)
+            # Add tags as a label to the image
+            if tags:
+                tag_text = ", ".join(tags)
+                tag_label = ttk.Label(self.frame_images, text=tag_text, background='white', anchor='e')
+                tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
+
         except Exception as e:
             print(f"Error displaying image: {e}")
-    
+
         self.current_col += 1
         if self.current_col > 3:
             self.current_col = 0
             self.current_row += 1
-    
+
         # Update scrollregion after adding the image
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-    
+
         self.update()  # Force the application to update the GUI
         self.canvas.update_idletasks()
 
