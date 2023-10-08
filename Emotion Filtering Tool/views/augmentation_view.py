@@ -4,8 +4,9 @@ from collections import defaultdict
 from PIL import Image, ImageTk
 
 class AugmentationView(ttk.Frame):
-    def __init__(self, master=None):
-        super().__init__(master)
+    def __init__(self, parent, shared_data, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.shared_data = shared_data
         self.photo_images = []
         self.selected_images = defaultdict(bool)
         self.image_frames = {}
@@ -15,6 +16,7 @@ class AugmentationView(ttk.Frame):
         self.grid_rowconfigure(1, weight=0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0)
+        self.original_images = {} 
         self.create_widgets()
 
     def create_widgets(self):
@@ -34,6 +36,9 @@ class AugmentationView(ttk.Frame):
 
         self.augment_button = ttk.Button(self, text="Process Selected", command=self.augment_images)
         self.augment_button.grid(row=1, column=0, padx=10, pady=10, sticky="w")
+        
+        self.export_button = ttk.Button(self, text="Export All", command=self.save_augmented_images)
+        self.export_button.grid(row=1, column=1, padx=10, pady=10, sticky="e")
 
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
@@ -41,9 +46,14 @@ class AugmentationView(ttk.Frame):
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
 
-
+    def save_augmented_images(self):
+        self.shared_data['augmented_images'] = self.photo_images
+        self.photo_images = []
+        self.master.change_view('Dataset Export Options')
+            
     def show_images(self, photo_images):
         self.photo_images = photo_images
+        self.original_images = {idx: ImageTk.getimage(img) for idx, img in enumerate(self.photo_images)}  # Store original PIL images
         self.current_row = 0
         self.current_col = 0
         self.selected_images.clear()
@@ -132,20 +142,27 @@ class AugmentationView(ttk.Frame):
             first_idx = self.selected_indices_queue.pop(0)
             self.show_next_image(first_idx, img_label, augment_window)
             
+        
     def accept_augment(self, img_label, augment_window, label_text):
         # Increment the counter for the currently processed image
         self.current_image += 1
         # Update the label text
         label_text.set(f"Image {self.current_image} of {self.total_images}")
 
-        # Implement code to store/save this image as 'accepted'
+        augmented_image_pil = self.original_images[self.current_image - 1]  # Replace with actual augmented image
+        augmented_image = ImageTk.PhotoImage(image=augmented_image_pil)
+
+        # Update the photo_images list with the augmented image
+        self.photo_images[self.current_image - 1] = augmented_image
+
+        # Update the photo_images list with the augmented image
+        self.photo_images[self.current_image - 1] = augmented_image
 
         # Display the next image if any are left
         if self.selected_indices_queue:
             next_idx = self.selected_indices_queue.pop(0)
             self.show_next_image(next_idx, img_label, augment_window)
         else:
-            # Close the Toplevel when done
             augment_window.destroy()
 
 
@@ -155,15 +172,16 @@ class AugmentationView(ttk.Frame):
         # Update the label text
         label_text.set(f"Image {self.current_image} of {self.total_images}")
 
-        # Implement code to mark this image as 'rejected'
-        # For example, you could add it back to a list for later review
+        # Restore the original image from the stored dictionary
+        original_pil_image = self.original_images[self.current_image - 1]
+        original_tk_image = ImageTk.PhotoImage(image=original_pil_image)
+        self.photo_images[self.current_image - 1] = original_tk_image
 
         # Display the next image if any are left
         if self.selected_indices_queue:
             next_idx = self.selected_indices_queue.pop(0)
             self.show_next_image(next_idx, img_label, augment_window)
         else:
-            # Close the Toplevel when done
             augment_window.destroy()
 
             

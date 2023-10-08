@@ -107,14 +107,15 @@ class DataUploadView(ttk.Frame):
 
     def upload_dataset(self):
         file_path = filedialog.askopenfilename(filetypes=[
-            ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2 *.json *.xml *.csv *.npy *.npz *.hdf5'),
+            ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2'),
             ('ZIP files', '*.zip'),
             ('TAR files', '*.tar *.tar.gz *.tar.bz2'),
-            ('JSON files', '*.json'),
-            ('XML files', '*.xml'),
-            ('CSV files', '*.csv'),
-            ('Numpy files', '*.npy *.npz'),
-            ('HDF5 files', '*.hdf5'),
+            #('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2 *.json *.xml *.csv *.npy *.npz *.hdf5'),
+            # ('JSON files', '*.json'),
+            # ('XML files', '*.xml'),
+            # ('CSV files', '*.csv'),
+            # ('Numpy files', '*.npy *.npz'),
+            # ('HDF5 files', '*.hdf5'),
         ])
         if file_path:
             self.process_button['text'] = "Loading..."

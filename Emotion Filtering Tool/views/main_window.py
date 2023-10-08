@@ -31,13 +31,16 @@ class MainWindow(tk.Frame):
         # Dictionary to store views (frames) to show/hide
         self.views = {}
         self.current_view = None
-
+        self.shared_data = {
+            'augmented_images': []
+        }
+        
         # Create the view frames but don't display them yet
         self.views['Data Upload & Image Selection'] = DataUploadView(self)
         self.views['Gallery'] = GalleryView(self)
         self.views['Manual Image Review'] = ManualReviewView(self)
-        self.views['Image Augmentation'] = AugmentationView(self)
-        self.views['Dataset Export Options'] = ExportOptionView(self)
+        self.views['Image Augmentation'] = AugmentationView(self, self.shared_data)
+        self.views['Dataset Export Options'] = ExportOptionView(self, self.shared_data)
 
         # Create ttk Style for customizing buttons
         self.style = ttk.Style()
@@ -65,10 +68,10 @@ class MainWindow(tk.Frame):
 
         self.change_view('Data Upload & Image Selection')
         
-        try:
-            subprocess.run(['dvc', 'init', '--no-scm'], check=True, capture_output=True)
-        except subprocess.CalledProcessError as e:
-            print(f'Failed to initialize DVC: {e.stderr.decode()}')
+        # try:
+        #     subprocess.run(['dvc', 'init', '--no-scm'], check=True, capture_output=True)
+        # except subprocess.CalledProcessError as e:
+        #     print(f'Failed to initialize DVC: {e.stderr.decode()}')
 
 
     def change_view(self, view_name):
