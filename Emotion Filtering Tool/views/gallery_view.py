@@ -54,20 +54,24 @@ class GalleryView(ttk.Frame):
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-        
+       
+    # DEV NOTE
+    # change this to not send images that have previously been sent to manual review
+    # to avoid duplicates 
     def send_to_review(self):
         self.master.views['Manual Image Review'].show_images(self.candidate_images)
         self.master.change_view('Manual Image Review')
 
+    # recieves the images from the candidate folder, along with their tags
     def receive_data(self, candidate_folder, image_tag_mapping):
         self.candidate_folder = candidate_folder
         self.image_tag_mapping = image_tag_mapping
-        # Assuming the image path is the key in the image_tag_mapping dictionary
         print(list(image_tag_mapping.keys())[0])
         image_path = list(image_tag_mapping.keys())[0] if image_tag_mapping else None
         if image_path:
             self.load_single_image(image_path)
-        
+            
+     # as images are filtered by the neural network, the gallery view will display them
     def load_single_image(self, image_path):
         try:
             with open(image_path, 'rb') as f:

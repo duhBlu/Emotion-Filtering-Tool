@@ -15,12 +15,12 @@ class MainWindow(tk.Frame):
         super().__init__(master)
         self.grid(sticky='nsew')
 
-        # Configure the main frame's rows and columns
+        # make 5 rows for the 5 buttons
         for i in range(5):
             self.grid_rowconfigure(i, weight=1)
 
-        self.grid_columnconfigure(0, weight=0)
-        self.grid_columnconfigure(1, weight=6)
+        self.grid_columnconfigure(0, weight=0) # button, weight 0 so no grow
+        self.grid_columnconfigure(1, weight=6) # main content section, weight so it grow
 
         # Create a container frame to hold the views
         self.view_container = tk.Frame(self)
@@ -39,50 +39,65 @@ class MainWindow(tk.Frame):
         self.views['Image Augmentation'] = AugmentationView(self)
         self.views['Dataset Export Options'] = ExportOptionView(self)
 
-        # Create ttk Style for customizing buttons
+        # Unselected button color
         self.style = ttk.Style()
         self.style.configure(
             "Custom.TButton",
             font=("Arial", 12), 
-            foreground="blue"
+            foreground="blue",
+            background="SystemButtonFace"
+        )
+        # Selected button color
+        self.style.configure(
+            "Selected.TButton",
+            font=("Arial", 12),
+            foreground="white",
+            background="blue"
         )
 
-        # Create buttons on the left side with the custom style
+        # Make the list of buttons
         buttons = ['Data Upload & Image Selection', 
                    'Gallery', 
                    'Manual Image Review', 
                    'Image Augmentation', 
                    'Dataset Export Options']
-
+        
+        self.buttons = {}  # dictionary to store references to the button
         for idx, btn_text in enumerate(buttons):
-            btn = ttk.Button(
+            btn = tk.Button(
                 self, 
                 text=btn_text, 
                 command=lambda v=btn_text: self.change_view(v), 
-                style="Custom.TButton"  # Apply the custom style
+                takefocus=0  
             )
+            if(btn_text == 'Data Upload & Image Selection'):
+                btn.config(bg="#e5e5e5", fg="#0c0c0c")
             btn.grid(row=idx, column=0, sticky='nsew')
-
+            self.buttons[btn_text] = btn  # Store the button reference
+            
         self.change_view('Data Upload & Image Selection')
-        
-        # try:
-        #     subprocess.run(['dvc', 'init', '--no-scm'], check=True, capture_output=True)
-        # except subprocess.CalledProcessError as e:
-        #     print(f'Failed to initialize DVC: {e.stderr.decode()}')
 
+        buffer = tk.Frame(self.view_container, bg='white')
+        buffer.grid(row=0, column=0, sticky='nsew', padx=1000, pady=1000) 
+
+        for name in self.views:
+            view = self.views[name]
+            view.grid(in_=self.view_container, row=0, column=0, sticky='nsew')
+            view.lower(buffer)
 
     def change_view(self, view_name):
-        if self.current_view:
-            self.current_view.grid_forget()  # This hides the currently visible view
-
-        new_view = self.views.get(view_name)
-        if new_view:
-            # Using the container frame to grid the new_view
-            new_view.grid(in_=self.view_container, row=0, column=0, sticky='nsew')
-            self.current_view = new_view
-
+        if view_name in self.views:
+            for name, view in self.views.items():
+                if name == view_name:
+                    view.lift()
+            for name, btn in self.buttons.items():
+                if name == view_name:
+                    btn.config(bg="#e5e5e5", fg="#0c0c0c") 
+                else:
+                    btn.config(bg="#bfbfbf", fg="#0c0c0c")
+       
+    # cleanup system made folders
     def destroy(self):
-        # Add code to delete the extracted folders
         data_upload_view = self.views.get('Data Upload & Image Selection')
         if data_upload_view:
             for root_folder, subfolders in data_upload_view.extracted_folders_dict.items():
@@ -99,11 +114,12 @@ if __name__ == "__main__":
     root = ThemedTk(theme="breeze")
     root.title('Emotion Filtering Tool')
     root.wm_state('zoomed')
-    # Allow the main frame to grow and shrink with the window
+    
+    # create main root grid. 1x1 so main window grows with the size of the screen
     root.grid_rowconfigure(0, weight=1)
     root.grid_columnconfigure(0, weight=1)
 
-    # Create the main window frame
+    # create the root window
     main_win = MainWindow(master=root)
     main_win.grid(row=0, column=0, sticky='nsew')
     

@@ -200,8 +200,7 @@ class AugmentationView(ttk.Frame):
         else:
             # No more images to process, destroy the window
             augment_window.destroy()
-        
-        
+            
 
     def cancel_augment(self, img_label, augment_window, label_text):
         # Restore the original image from the stored dictionary

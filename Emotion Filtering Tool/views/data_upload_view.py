@@ -37,14 +37,14 @@ class DataUploadView(ttk.Frame):
             
         # Overall frame grid configuration
         self.grid_rowconfigure(0, weight=0)
-        self.grid_rowconfigure(1, weight=1)
-        self.grid_rowconfigure(2, weight=2)
-        self.grid_rowconfigure(3, weight=0)
+        self.grid_rowconfigure(1, weight=1) # filtering options label, upload button, 
+        self.grid_rowconfigure(2, weight=2) # notebook , dataset filename listbox
+        self.grid_rowconfigure(3, weight=0) # process button
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=3)
 
-        # Header label
+        # Filtering Options label
         label_font = ("Helvetica", 14)
         self.header_label = ttk.Label(self, text="Filtering options", font=label_font)
         self.header_label.grid(row=1, column=1, padx=10, pady=(20, 10), sticky='')
@@ -62,7 +62,7 @@ class DataUploadView(ttk.Frame):
         self.upload_button = ttk.Button(self, text="Upload Dataset", command=self.upload_dataset)
         self.upload_button.grid(row=1, column=0, padx=10, pady=(2, 0), sticky='sw')
 
-        # Image listbox
+        # Dataset Filename Listbox
         self.dataset_filenames_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE, bg=bg2)
         self.dataset_filenames_listbox.grid(row=2, column=0, padx=10, pady=2, sticky='nsew')
 
@@ -79,7 +79,6 @@ class DataUploadView(ttk.Frame):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Emotions")
 
-        # Radiobuttons for the "Emotions" tab
         emotion_options = ["Angry", "Crying", "Sad", "Surprised", "Confused", "Shy"] 
         self.emotion_var = tk.StringVar(value=emotion_options[0])
 
@@ -90,7 +89,6 @@ class DataUploadView(ttk.Frame):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Age(wip)")
 
-        # Radiobuttons for the "Age" tab
         age_options = ["Kids", "Adult", "Elder"]
         self.age_var = tk.StringVar(value=age_options[0])
 
@@ -101,8 +99,7 @@ class DataUploadView(ttk.Frame):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Race(wip)")
 
-        # Radiobuttons for the "Race" tab
-        race_options = ["Option1", "Option2", "Option3"]  # Modify these options accordingly
+        race_options = ["Option1", "Option2", "Option3"]  
         self.race_var = tk.StringVar(value=race_options[0])
 
         for i, option in enumerate(race_options):
@@ -173,10 +170,16 @@ class DataUploadView(ttk.Frame):
             with tarfile.open(archive_path) as archive_ref:
                 archive_ref.extractall(extract_dir)
 
+
+        # This code just checks if there are any subfolders in the uploaded file
+        # If subfolder has images, save filepath.
+        # once all subfolders have been checked, move the sub folder to new directory
+        # then cleans up the file directory of any remaining empty folders.
+        # we are left with only folders with images, the filenames of those folders will be added to the list box of uploaded files.
         subfolders_with_images = []
         folders_to_remove = []
 
-        for dirpath, _, filenames in os.walk(extract_dir):
+        for dirpath, _, filenames in os.walk(extract_dir): # os.walk is cool
             has_images = any(f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')) for f in filenames)
             if has_images:
                 subfolders_with_images.append(dirpath)
@@ -230,25 +233,23 @@ class DataUploadView(ttk.Frame):
 
     '''
     PROCESSING IMAGES
-        - Will send the folder paths to the Neural networks function (WIP)
-        - Continues processing images in the background,
-          and show accepted candidates in the gallery view
     '''
     def start_processing_images(self):
         selected_indices = self.dataset_filenames_listbox.curselection()
         if not selected_indices:
-            # No datasets selected, show a message to the user
             messagebox.showinfo("No Datasets Selected", "Please select a dataset to process.")
             return
         threading.Thread(target=self.process_images).start()
         self.master.change_view('Gallery')
 
     def neural_network_filter(self, image_path):
+        # Dev note
         # This function should actually call the neural network to decide if an image is a candidate or not
         # Right now it just simulates the behavior with a random choice.
         is_accepted = random.choice([True, False])
         
         # If the image is accepted, add the tags
+        # just for testing but will need to re-implement this
         if is_accepted:
             tags = [
                 self.emotion_var.get(),
