@@ -47,13 +47,6 @@ class ManualReviewView(ttk.Frame):
         self.send_to_augment_button = ttk.Button(self, text="Send Accepted to Augmentation", command=self.send_to_augment)
         self.send_to_augment_button.grid(row=2, column=0, padx=10, pady=10, sticky="")
         
-    def send_to_augment(self):
-        self.master.views['Image Augmentation'].show_images(self.accepted_images)
-        self.master.change_view('Image Augmentation')
-        self.accepted_images = []
-        self.accepted_count = 0
-        self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
-
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
@@ -62,6 +55,13 @@ class ManualReviewView(ttk.Frame):
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
+
+    def send_to_augment(self):
+        self.master.views['Image Augmentation'].show_images(self.accepted_images)
+        self.master.change_view('Image Augmentation')
+        self.accepted_images = []
+        self.accepted_count = 0
+        self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
 
 
     def add_image_to_review(self, idx, photo):

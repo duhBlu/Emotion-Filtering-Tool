@@ -1,9 +1,11 @@
 from email.mime import image
+import random
 import tkinter as tk
 from tkinter import ttk
 import subprocess
 from tkinter import filedialog
 import os
+from zipfile import ZipFile
 
 class ExportOptionView(ttk.Frame):
     def __init__(self, parent, **kwargs):
@@ -11,6 +13,8 @@ class ExportOptionView(ttk.Frame):
         self.image_count_var = tk.StringVar()
         self.new_images = []
         self.create_widgets()
+        self.sample_tags = ["happy", "sad", "angry"]
+        self.tagged_images = {}
         
         
     def create_widgets(self):
@@ -82,7 +86,7 @@ class ExportOptionView(ttk.Frame):
     
     def receive_images(self, images):
         self.new_images = images
-        self.update_image_count()  # Assuming you have this method to update the count
+        self.update_image_count() 
 
     def update_image_count(self):
         count = len(self.new_images)
@@ -96,7 +100,14 @@ class ExportOptionView(ttk.Frame):
         self.commit_button.grid(row=4, column=0, sticky="sw")
         self.trash_button.grid(row=4, column=1, sticky="se")
         
-    def export_dataset(self):
+    def export_dataset(self):    
+        for image in self.new_images:
+            tag = random.choice(self.sample_tags)
+        
+            if tag not in self.tagged_images:
+                self.tagged_images[tag] = []
+        
+            self.tagged_images[tag].append(image)
         file_formats = [
             ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2 *.json *.xml *.csv *.npy *.npz *.hdf5'),
             ('ZIP files', '*.zip'),
@@ -120,47 +131,49 @@ class ExportOptionView(ttk.Frame):
         ext = os.path.splitext(file_path)[-1].lower()
 
         if ext == ".zip":
-            self.export_zip(file_path)
+            self.export_zip(file_path, self.tagged_images)
         elif ext in [".tar", ".tar.gz", ".tar.bz2"]:
-            self.export_tar(file_path, ext)
+            self.export_tar(file_path, self.tagged_images, ext)
         elif ext == ".json":
-            self.export_json(file_path)
+            self.export_json(file_path, self.tagged_images)
         elif ext == ".xml":
-            self.export_xml(file_path)
+            self.export_xml(file_path, self.tagged_images)
         elif ext == ".csv":
-            self.export_csv(file_path)
+            self.export_csv(file_path, self.tagged_images)
         elif ext in [".npy", ".npz"]:
-            self.export_numpy(file_path, ext)
+            self.export_numpy(file_path, self.tagged_images, ext)
         elif ext == ".hdf5":
-            self.export_hdf5(file_path)
+            self.export_hdf5(file_path, self.tagged_images)
         else:
             print("Unsupported file format")  # Handle this case in your UI
 
-    def export_zip(self, file_path):
-        print(f"Exporting as ZIP to {file_path}")
-        # Your ZIP export logic here
+    def export_zip(self, file_path, tagged_images):
+        with ZipFile(file_path, 'w') as zf:
+            for tag, images in tagged_images.items():
+                for image in images:
+                    zf.write(image, os.path.join(tag, image)) 
 
-    def export_tar(self, file_path, ext):
+    def export_tar(self, file_path, tagged_images, ext):
         print(f"Exporting as TAR ({ext}) to {file_path}")
         # Your TAR export logic here
 
-    def export_json(self, file_path):
+    def export_json(self, file_path, tagged_images):
         print(f"Exporting as JSON to {file_path}")
         # Your JSON export logic here
 
-    def export_xml(self, file_path):
+    def export_xml(self, file_path, tagged_images):
         print(f"Exporting as XML to {file_path}")
         # Your XML export logic here
 
-    def export_csv(self, file_path):
+    def export_csv(self, file_path, tagged_images):
         print(f"Exporting as CSV to {file_path}")
         # Your CSV export logic here
 
-    def export_numpy(self, file_path, ext):
+    def export_numpy(self, file_path, tagged_images, ext):
         print(f"Exporting as NumPy ({ext}) to {file_path}")
         # Your NumPy export logic here
 
-    def export_hdf5(self, file_path):
+    def export_hdf5(self, file_path, tagged_images):
         print(f"Exporting as HDF5 to {file_path}")
         # Your HDF5 export logic here
 

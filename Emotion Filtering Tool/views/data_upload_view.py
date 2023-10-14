@@ -13,6 +13,7 @@ import csv
 import xml.etree.ElementTree as ET
 import time
 import tkinter.messagebox as messagebox
+from deepface import DeepFace
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -105,6 +106,9 @@ class DataUploadView(ttk.Frame):
         for i, option in enumerate(race_options):
             ttk.Radiobutton(frame, text=option, variable=self.race_var, value=option).grid(row=i, column=0, sticky='w')
     
+    '''
+    Upload Dataset
+    '''
     def get_full_extension(file_path):
         basename = os.path.basename(file_path)
         if basename.endswith('.tar.gz'):
@@ -242,23 +246,32 @@ class DataUploadView(ttk.Frame):
         threading.Thread(target=self.process_images).start()
         self.master.change_view('Gallery')
 
-    def neural_network_filter(self, image_path):
-        # Dev note
-        # This function should actually call the neural network to decide if an image is a candidate or not
-        # Right now it just simulates the behavior with a random choice.
-        is_accepted = random.choice([True, False])
-        
-        # If the image is accepted, add the tags
-        # just for testing but will need to re-implement this
-        if is_accepted:
-            tags = [
-                self.emotion_var.get(),
-                self.age_var.get(),
-                self.race_var.get()
-            ]
-            self.image_tag_mappings[image_path] = tags  # Associate the tags with this image
-        print(self.image_tag_mappings)  
-        return is_accepted
+def neural_network_filter(self, image_path, user_emotion):
+    # Using DeepFace to predict the emotion of the image
+    obj = DeepFace.analyze(img_path=image_path, actions=['emotion'])
+
+    # Check the model's output against the user's criteria
+    if user_emotion == "cheerful" and obj["emotion"]["dominant_emotion"] == "happy":
+        is_accepted = True
+    elif user_emotion == "calm" and obj["emotion"]["dominant_emotion"] == "neutral":
+        is_accepted = True
+    # Add more custom criteria here as needed
+    else:
+        is_accepted = False
+
+    if is_accepted:
+        # If you also want to save the predicted emotion, age, and race (when available)
+        tags = [
+            obj["emotion"]["dominant_emotion"],
+            obj.get("age", None),  # age might not always be available depending on the model
+            obj.get("race", {}).get("dominant_race", None)  # race might not always be available depending on the model
+        ]
+        # Filter out any None values from tags
+        tags = [tag for tag in tags if tag]
+        self.image_tag_mappings[image_path] = tags  # Associate the tags with this image
+    print(self.image_tag_mappings)
+    return is_accepted
+
 
     def process_images(self):
         # Get the indices of selected items
@@ -268,6 +281,8 @@ class DataUploadView(ttk.Frame):
         all_extracted_folders = []
         for root_folder, sub_folders in self.extracted_folders_dict.items():
             all_extracted_folders.extend(sub_folders)
+        
+        
 
         # Create directory to hold "candidate" images
         base_dir = os.path.dirname(all_extracted_folders[0]) if all_extracted_folders else ""
@@ -291,7 +306,7 @@ class DataUploadView(ttk.Frame):
             for img_file in os.listdir(folder_path):
                 img_path = os.path.join(folder_path, img_file)
 
-                is_accepted = self.neural_network_filter(img_path)  # Call the neural network filtering function
+                is_accepted = self.neural_network_filter(img_path, "cheerful")  # Call the neural network filtering function
 
                 if is_accepted:
                     # Copy it to the "candidates" folder

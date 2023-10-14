@@ -3,7 +3,6 @@ from tkinter import ttk
 from PIL import Image, ImageTk
 from io import BytesIO
 import os
-from tkinter import NW, NE
 
 class GalleryView(ttk.Frame):
     def __init__(self, master=None):
