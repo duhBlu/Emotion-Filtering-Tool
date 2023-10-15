@@ -9,12 +9,12 @@ from views.gallery_view import GalleryView
 from views.manual_review import ManualReviewView
 from views.augmentation_view import AugmentationView
 from views.export_options_view import ExportOptionView
+import tensorflow as tf
 
 class MainWindow(tk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.grid(sticky='nsew')
-
         # make 5 rows for the 5 buttons
         for i in range(5):
             self.grid_rowconfigure(i, weight=1)
@@ -75,7 +75,6 @@ class MainWindow(tk.Frame):
             btn.grid(row=idx, column=0, sticky='nsew')
             self.buttons[btn_text] = btn  # Store the button reference
             
-        self.change_view('Data Upload & Image Selection')
 
         buffer = tk.Frame(self.view_container, bg='white')
         buffer.grid(row=0, column=0, sticky='nsew', padx=1000, pady=1000) 
@@ -83,8 +82,10 @@ class MainWindow(tk.Frame):
         for name in self.views:
             view = self.views[name]
             view.grid(in_=self.view_container, row=0, column=0, sticky='nsew')
-            view.lower(buffer)
-
+            view.lower(buffer) 
+            
+        self.change_view('Data Upload & Image Selection')
+                    
     def change_view(self, view_name):
         if view_name in self.views:
             for name, view in self.views.items():

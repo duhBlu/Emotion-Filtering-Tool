@@ -64,24 +64,30 @@ class GalleryView(ttk.Frame):
     # recieves the images from the candidate folder, along with their tags
     def receive_data(self, candidate_folder, image_tag_mapping):
         self.candidate_folder = candidate_folder
-        self.image_tag_mapping = image_tag_mapping
-        print(list(image_tag_mapping.keys())[0])
+        # Combine with existing image_tag_mappings if present
+        self.image_tag_mappings = {**self.image_tag_mappings, **image_tag_mapping}
         image_path = list(image_tag_mapping.keys())[0] if image_tag_mapping else None
-        if image_path:
-            self.load_single_image(image_path)
+        features = image_tag_mapping.get(image_path, {}).get('tags', None)
+        if features:
+            self.load_single_image(image_path, features)
+
+
+
+
             
      # as images are filtered by the neural network, the gallery view will display them
-    def load_single_image(self, image_path):
+    def load_single_image(self, image_path, features=None):
         try:
             with open(image_path, 'rb') as f:
                 image_data = f.read()
             image = Image.open(BytesIO(image_data))
             resized_image = self.resize_image(image)
-            tags = self.image_tag_mapping.get(image_path, [])  # Fetch tags for this image if any
+            tags = features if features is not None else self.image_tag_mapping.get(image_path, [])  # Fetch tags for this image if any
             self.add_image_to_gallery(resized_image, tags)
-            print(f"Loaded {image_path}")
+            print(f"Loaded {image_path} with tags: {tags}")
         except Exception as e:
             print(f"Error loading image {os.path.basename(image_path)}: {e}")
+
 
     
     def resize_image(self, image, max_width=300, max_height=300):

@@ -1,3 +1,6 @@
+from ast import arg
+from asyncio.windows_events import NULL
+from doctest import debug
 from tkinter import ttk, filedialog
 import tkinter as tk
 import threading
@@ -10,10 +13,13 @@ from PIL import Image, ImageTk
 from io import BytesIO
 import json
 import csv
+import cv2
 import xml.etree.ElementTree as ET
 import time
 import tkinter.messagebox as messagebox
 from deepface import DeepFace
+import tensorflow as tf
+
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -25,12 +31,23 @@ class DataUploadView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.uploaded_files = []
+        self.process_lock = threading.Lock()
         self.extracted_folders_dict = {}
         self.image_tag_mappings = {}
+        self.label_mapping = {
+            'man': 'male',
+            'boy': 'male',
+            'guy': 'male',
+            'male person': 'male',
+            'woman': 'female',
+            'girl': 'female',
+            'lady': 'female',
+            'female person': 'female',
+            # Add other mappings as necessary
+        }
         self.create_widgets()
 
 
-    
     def create_widgets(self):
         self.row_frames = [tk.Frame(self, bg=color) for color in [bg1]]
         for i, row_frame in enumerate(self.row_frames):
@@ -58,6 +75,7 @@ class DataUploadView(ttk.Frame):
         self.create_emotion_tab()
         self.create_age_tab()
         self.create_race_tab()
+        self.create_gender_tab()
 
         # Upload button
         self.upload_button = ttk.Button(self, text="Upload Dataset", command=self.upload_dataset)
@@ -81,30 +99,39 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Emotions")
 
         emotion_options = ["Angry", "Crying", "Sad", "Surprised", "Confused", "Shy"] 
-        self.emotion_var = tk.StringVar(value=emotion_options[0])
-
+        self.emotion_vars = {option: tk.BooleanVar() for option in emotion_options}  # Each emotion gets its own BooleanVar
+        
         for i, option in enumerate(emotion_options):
-            ttk.Radiobutton(frame, text=option, variable=self.emotion_var, value=option).grid(row=i, column=0, sticky='w')
+            ttk.Checkbutton(frame, text=option, variable=self.emotion_vars[option]).grid(row=i, column=0, sticky='w')
 
     def create_age_tab(self):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Age(wip)")
 
         age_options = ["Kids", "Adult", "Elder"]
-        self.age_var = tk.StringVar(value=age_options[0])
-
+        self.age_vars = {option: tk.BooleanVar() for option in age_options}
         for i, option in enumerate(age_options):
-            ttk.Radiobutton(frame, text=option, variable=self.age_var, value=option).grid(row=i, column=0, sticky='w')
+            ttk.Checkbutton(frame, text=option, variable=self.age_vars[option]).grid(row=i, column=0, sticky='w')
             
     def create_race_tab(self):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Race(wip)")
 
         race_options = ["Option1", "Option2", "Option3"]  
-        self.race_var = tk.StringVar(value=race_options[0])
+        self.race_vars = {option: tk.BooleanVar() for option in race_options}
+        
 
         for i, option in enumerate(race_options):
-            ttk.Radiobutton(frame, text=option, variable=self.race_var, value=option).grid(row=i, column=0, sticky='w')
+            ttk.Checkbutton(frame, text=option, variable=self.race_vars[option]).grid(row=i, column=0, sticky='w')
+            
+    def create_gender_tab(self):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text="Gender")
+
+        gender_options = ["male", "female"]  
+        self.gender_vars = {option: tk.BooleanVar() for option in gender_options}
+        for i, option in enumerate(gender_options):
+            ttk.Checkbutton(frame, text=option, variable=self.gender_vars[option]).grid(row=i, column=0, sticky='w')
     
     '''
     Upload Dataset
@@ -240,40 +267,70 @@ class DataUploadView(ttk.Frame):
     '''
     def start_processing_images(self):
         selected_indices = self.dataset_filenames_listbox.curselection()
+    
+        # Check for selected options
+        selected_emotions = [k for k, v in self.emotion_vars.items() if v.get()]
+        selected_ages = [k for k, v in self.age_vars.items() if v.get()]
+        selected_races = [k for k, v in self.race_vars.items() if v.get()]
+        selected_genders = [k for k, v in self.gender_vars.items() if v.get()]
+        actions = {}
+        if selected_emotions: actions['emotion']=selected_emotions
+        if selected_ages: actions['age']=selected_ages
+        if selected_genders: actions['gender']=selected_genders
+        if selected_races: actions['race']=selected_races
+        # If no datasets or no filtering options are selected, show an informative message
         if not selected_indices:
             messagebox.showinfo("No Datasets Selected", "Please select a dataset to process.")
             return
-        threading.Thread(target=self.process_images).start()
+        elif not (selected_emotions or selected_ages or selected_races or selected_genders):
+            messagebox.showinfo("No Filtering Options Selected", "Please select at least one filtering option.")
+            return
+
+        with self.process_lock:
+            threading.Thread(target=self.process_images, args=(actions,)).start()
         self.master.change_view('Gallery')
 
-def neural_network_filter(self, image_path, user_emotion):
-    # Using DeepFace to predict the emotion of the image
-    obj = DeepFace.analyze(img_path=image_path, actions=['emotion'])
-
-    # Check the model's output against the user's criteria
-    if user_emotion == "cheerful" and obj["emotion"]["dominant_emotion"] == "happy":
-        is_accepted = True
-    elif user_emotion == "calm" and obj["emotion"]["dominant_emotion"] == "neutral":
-        is_accepted = True
-    # Add more custom criteria here as needed
-    else:
-        is_accepted = False
-
-    if is_accepted:
-        # If you also want to save the predicted emotion, age, and race (when available)
-        tags = [
-            obj["emotion"]["dominant_emotion"],
-            obj.get("age", None),  # age might not always be available depending on the model
-            obj.get("race", {}).get("dominant_race", None)  # race might not always be available depending on the model
-        ]
-        # Filter out any None values from tags
-        tags = [tag for tag in tags if tag]
-        self.image_tag_mappings[image_path] = tags  # Associate the tags with this image
-    print(self.image_tag_mappings)
-    return is_accepted
 
 
-    def process_images(self):
+    # Neural netork source https://github.com/serengil/deepface
+    def neural_network_filter(self, image_paths, actions): #, sizeX, sizeY):
+        accepted_images = {}
+        try:
+            for image_path in image_paths:
+                # Analyzing age, gender, race, and emotion for the current image
+                analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
+                print(analysis)
+                face_data = analysis[0]
+                
+                features = {}
+                if actions.get('emotion'):
+                    features['emotion'] = face_data['dominant_emotion'].lower()
+                if actions.get('gender'):
+                    features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
+                if actions.get('race'):
+                    features['race'] = face_data['dominant_race'].lower()
+                if actions.get('age'):
+                    features['age'] = str(face_data['age'])
+
+
+                # Check if the user's desired emotion matches the detected dominant emotion
+                if (
+                    (not actions.get('emotion') or features['emotion'] in actions['emotion']) and
+                    (not actions.get('age') or features['age'] in actions.get('age')) and
+                    (not actions.get('race') or features['race'] in actions.get('race')) and
+                    (not actions.get('gender') or features['gender'] in actions.get('gender'))
+                ):
+                    accepted_images[image_path] = features
+
+            return accepted_images
+
+        except Exception as e:
+            print(f"Error analyzing images. Error: {e}")
+            return {}
+
+
+    def process_images(self, actions):
+        BATCH_SIZE = 3
         # Get the indices of selected items
         selected_indices = self.dataset_filenames_listbox.curselection()
 
@@ -281,8 +338,6 @@ def neural_network_filter(self, image_path, user_emotion):
         all_extracted_folders = []
         for root_folder, sub_folders in self.extracted_folders_dict.items():
             all_extracted_folders.extend(sub_folders)
-        
-        
 
         # Create directory to hold "candidate" images
         base_dir = os.path.dirname(all_extracted_folders[0]) if all_extracted_folders else ""
@@ -303,16 +358,20 @@ def neural_network_filter(self, image_path, user_emotion):
             if folder_path == candidate_folder:
                 continue
 
-            for img_file in os.listdir(folder_path):
-                img_path = os.path.join(folder_path, img_file)
+            img_paths = [os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path)]
+    
+            for batch_start in range(0, len(img_paths), BATCH_SIZE):
+                batch = img_paths[batch_start:batch_start + BATCH_SIZE]
+                accepted_images_dict = self.neural_network_filter(batch, actions)
 
-                is_accepted = self.neural_network_filter(img_path, "cheerful")  # Call the neural network filtering function
-
-                if is_accepted:
-                    # Copy it to the "candidates" folder
-                    candidate_image_path = os.path.join(candidate_folder, img_file)
+                for img_path, features in accepted_images_dict.items():
+                    candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
+                    actual_tags = list(features.values())
+                    self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': actual_tags}
                     shutil.copy(img_path, candidate_image_path)
-                    # Send this image path to GalleryView to load and display
-                    # Only send the mapping of the current image
-                    self.master.views['Gallery'].receive_data(candidate_folder, {candidate_image_path: self.image_tag_mappings.get(img_path, [])})
+                    self.master.views['Gallery'].receive_data(candidate_folder, {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)})
+                    self.master.views['Gallery'].update_idletasks() 
+
+
+                
 
