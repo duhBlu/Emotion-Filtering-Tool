@@ -43,7 +43,6 @@ class DataUploadView(ttk.Frame):
             'girl': 'female',
             'lady': 'female',
             'female person': 'female',
-            # Add other mappings as necessary
         }
         self.create_widgets()
 
