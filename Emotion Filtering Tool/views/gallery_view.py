@@ -140,10 +140,10 @@ class GalleryView(ttk.Frame):
                 tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
 
             # Update current row width and column
+            # Update current row width and column
             self.current_row_width += image_width_with_padding
             self.current_col += 1
-
-            # Update scrollregion after adding the image
+        
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
             self.update()  # Force the application to update the GUI
@@ -152,19 +152,6 @@ class GalleryView(ttk.Frame):
         except Exception as e:
             print(f"Error displaying image: {e}")
 
-
-    def calculate_position(self, img_width):
-        # Check if the image can fit in the remaining space in the current row
-        if not self.image_positions or self.image_positions[-1] + img_width > self.MAX_WIDTH:
-            self.image_positions.append(0)  # Start a new row
-            y_position = sum(self.row_heights) if self.row_heights else 0
-            self.row_heights.append(200)  # Add the height of this row
-        else:
-            x_position = self.image_positions[-1]
-            y_position = sum(self.row_heights[:-1])  # Position at the start of the current row
-            self.image_positions[-1] += img_width  # Update the x position for the next image in this row
-
-        return x_position, y_position
 
 
 

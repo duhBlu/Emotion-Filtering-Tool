@@ -13,6 +13,7 @@ class AugmentationView(ttk.Frame):
         self.grid_columnconfigure(1, weight=0)
         self.current_row = 0
         self.current_col = 0
+        self.current_row_width = 0
         self.photo_images = []
         self.selected_images = defaultdict(bool)
         self.image_frames = {}
@@ -63,6 +64,16 @@ class AugmentationView(ttk.Frame):
             self.add_image_to_augment(idx, photo)
 
     def add_image_to_augment(self, idx, photo):
+        # Calculate the width of the image with padding and checkbutton
+        image_width_with_padding = photo.width() + 10 + 20  # 10 for padding and 20 for checkbutton
+        
+        # Check if adding this image would exceed the max frame width
+        if self.current_row_width + image_width_with_padding > self.canvas.winfo_width():
+            # Reset for a new row
+            self.current_row_width = 0
+            self.current_col = 0
+            self.current_row += 1
+
         frame = ttk.Frame(self.frame_images, relief="flat")
         frame.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
         self.image_frames[idx] = frame
@@ -79,10 +90,9 @@ class AugmentationView(ttk.Frame):
         
         self.selected_images[idx] = False
 
+        # Update current row width and column
+        self.current_row_width += image_width_with_padding
         self.current_col += 1
-        if self.current_col > 2:
-            self.current_col = 0
-            self.current_row += 1
         
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 

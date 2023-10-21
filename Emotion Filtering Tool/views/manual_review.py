@@ -13,6 +13,7 @@ class ManualReviewView(ttk.Frame):
         self.image_frames = {}
         self.current_row = 0 
         self.current_col = 0
+        self.current_row_width = 0 
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
         self.grid_rowconfigure(2, weight=0)
@@ -65,6 +66,15 @@ class ManualReviewView(ttk.Frame):
 
 
     def add_image_to_review(self, idx, photo):
+        image_width_with_padding = photo.width() + 10 + 20 
+
+        # Check if adding this image would exceed the max frame width
+        if self.current_row_width + image_width_with_padding > self.canvas.winfo_width():
+            # Reset for new row
+            self.current_row_width = 0
+            self.current_col = 0
+            self.current_row += 1
+
         frame = ttk.Frame(self.frame_images, relief="flat")
         frame.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
         self.image_frames[idx] = frame
@@ -80,11 +90,10 @@ class ManualReviewView(ttk.Frame):
         img_label.bind("<MouseWheel>", self._on_mousewheel)
         self.selected_images[idx] = False
 
+        # Update current row width and column
+        self.current_row_width += image_width_with_padding
         self.current_col += 1
-        if self.current_col > 2:
-            self.current_col = 0
-            self.current_row += 1
-        
+    
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
     def image_click(self, idx, var):
