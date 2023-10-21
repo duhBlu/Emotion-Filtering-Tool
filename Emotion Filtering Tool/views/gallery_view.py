@@ -1,3 +1,4 @@
+from msilib.schema import TextStyle
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -13,8 +14,9 @@ class GalleryView(ttk.Frame):
         self.current_row = 0
         self.current_col = 0
         # Configure the main frame's row and column weights
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=0)
+        self.grid_rowconfigure(0, weight=0)
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=0)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0)  # This ensures scrollbar remains to the right
         self.create_widgets()
@@ -22,10 +24,10 @@ class GalleryView(ttk.Frame):
     def create_widgets(self):
         # Configure canvas and scrollbar
         self.canvas = tk.Canvas(self)
-        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.canvas.grid(row=1, column=0, sticky="nsew")
         
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollbar.grid(row=0, column=1, sticky='nse')
+        self.scrollbar.grid(row=0, column=1, rowspan=3, sticky='nse')
         
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         
@@ -37,23 +39,34 @@ class GalleryView(ttk.Frame):
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
 
-        self.status_label = ttk.Label(self, text="")
-        self.status_label.grid(row=1, column=0, columnspan=2, sticky="w")
-
-        # Configure rows and columns to adjust dynamically
-        self.rowconfigure(0, weight=1)
-        self.columnconfigure(0, weight=1)
-        
         # Review button
         self.review_button = ttk.Button(self, text="Send to Manual Review", command=self.send_to_review)
-        self.review_button.grid(row=1, column=0, padx=20, pady=20, sticky='e')
+        self.review_button.grid(row=2, column=1, padx=20, pady=20, sticky='w')
+        
+        # progress bar
+        self.progress_var = tk.IntVar() 
+        self.progress_bar = ttk.Progressbar(self, variable=self.progress_var, orient="horizontal", length=300, mode="determinate")
+        self.progress_bar.grid(row=0, column=0, columnspan=2, pady=20, padx=(30, 20), sticky='ew')
+        label_font = ("Helvetica", 14)
+        # Label to display the progress
+        self.progress_label = ttk.Label(self, text="0/0", font=label_font)
+        self.progress_label.grid(row=0, column=0, pady=20, padx=(10, 15), sticky='w')
 
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-       
+     
+    def set_progress_maximum(self, max_value):
+            self.progress_bar["maximum"] = max_value
+
+    def update_progress(self, value):
+        # if(value > self.progress_bar["maximum"]):
+        #     value = self.progress_bar["maximum"]
+        self.progress_var.set(value)
+        self.progress_label["text"] = f"{value}/{self.progress_bar['maximum']}"
+        
     # DEV NOTE
     # change this to not send images that have previously been sent to manual review
     # to avoid duplicates 
@@ -71,10 +84,6 @@ class GalleryView(ttk.Frame):
         if features:
             self.load_single_image(image_path, features)
 
-
-
-
-            
      # as images are filtered by the neural network, the gallery view will display them
     def load_single_image(self, image_path, features=None):
         try:
@@ -87,7 +96,6 @@ class GalleryView(ttk.Frame):
             print(f"Loaded {image_path} with tags: {tags}")
         except Exception as e:
             print(f"Error loading image {os.path.basename(image_path)}: {e}")
-
 
     
     def resize_image(self, image, max_width=300, max_height=300):

@@ -100,15 +100,22 @@ class MainWindow(tk.Frame):
     # cleanup system made folders
     def destroy(self):
         data_upload_view = self.views.get('Data Upload & Image Selection')
+    
         if data_upload_view:
-            for root_folder, subfolders in data_upload_view.extracted_folders_dict.items():
+            # Delete extracted folders
+            for root_folder in data_upload_view.dataset_image_counts.keys():
                 if os.path.exists(root_folder):
                     shutil.rmtree(root_folder)
                     print(f"Deleted root folder: {root_folder}")
-            
-            # Clear the dictionary
-            data_upload_view.extracted_folders_dict.clear()
-        root.quit()        
+
+            # Delete candidate folders
+            base_dir = os.path.dirname(list(data_upload_view.dataset_image_counts.keys())[0]) if data_upload_view.dataset_image_counts else ""
+            candidate_folder = os.path.join(base_dir, "Candidates").replace("\\", "/")
+        
+            if os.path.exists(candidate_folder):
+                shutil.rmtree(candidate_folder)
+                print(f"Deleted candidate folder: {candidate_folder}")  
+        root.quit()  
     
 
 if __name__ == "__main__":

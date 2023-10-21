@@ -32,7 +32,7 @@ class DataUploadView(ttk.Frame):
         super().__init__(master)
         self.uploaded_files = []
         self.process_lock = threading.Lock()
-        self.extracted_folders_dict = {}
+        self.dataset_image_counts = {}
         self.image_tag_mappings = {}
         self.label_mapping = {
             'man': 'male',
@@ -181,18 +181,14 @@ class DataUploadView(ttk.Frame):
             ext = '.'.join(os.path.basename(archive_path).split('.')[-2:])
         threading.Thread(target=self._threaded_extraction, args=(archive_path, ext), daemon=True).start()
 
+
     def _threaded_extraction(self, archive_path, ext):
         base_name = os.path.basename(archive_path).replace(ext, '')
         extract_dir = os.path.join(os.path.dirname(archive_path), base_name)
 
-        if extract_dir not in self.extracted_folders_dict:
-            self.extracted_folders_dict[extract_dir] = []
-
         if os.path.exists(extract_dir):
             shutil.rmtree(extract_dir)
-
         os.mkdir(extract_dir)
-
         if ext == '.zip':
             with zipfile.ZipFile(archive_path, 'r') as archive_ref:
                 archive_ref.extractall(extract_dir)
@@ -200,62 +196,34 @@ class DataUploadView(ttk.Frame):
             with tarfile.open(archive_path) as archive_ref:
                 archive_ref.extractall(extract_dir)
 
+        # Move all image files to the root extract directory (flatten the structure)
+        image_count = 0  
 
-        # This code just checks if there are any subfolders in the uploaded file
-        # If subfolder has images, save filepath.
-        # once all subfolders have been checked, move the sub folder to new directory
-        # then cleans up the file directory of any remaining empty folders.
-        # we are left with only folders with images, the filenames of those folders will be added to the list box of uploaded files.
-        subfolders_with_images = []
-        folders_to_remove = []
-
-        for dirpath, _, filenames in os.walk(extract_dir): # os.walk is cool
-            has_images = any(f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')) for f in filenames)
-            if has_images:
-                subfolders_with_images.append(dirpath)
-    
-        for folder in subfolders_with_images:
-            target_folder = os.path.join(extract_dir, os.path.basename(folder))
-            if not os.path.exists(target_folder):
-                os.mkdir(target_folder)
-        
-            for f in os.listdir(folder):
-                fpath = os.path.join(folder, f)
-                if os.path.isfile(fpath):
-                    shutil.move(fpath, os.path.join(target_folder, f))
-                    folders_to_remove_after_walk = []
-    
-        # First move the image files to the respective directories at root level.
         for dirpath, _, filenames in os.walk(extract_dir):
-            has_images = any(f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')) for f in filenames)
-        
-            if has_images:
-                target_folder = os.path.join(extract_dir, os.path.basename(dirpath))
-                if dirpath != target_folder:
-                    if not os.path.exists(target_folder):
-                        os.makedirs(target_folder)
-                    for f in filenames:
-                        if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')):
-                            shutil.move(os.path.join(dirpath, f), os.path.join(target_folder, f))
-    
-        # Now, check for directories to remove (start from leaf and go upwards).
+            for f in filenames:
+                if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')):
+                    # Modify filename to make it unique based on its original directory
+                    subdir_name = os.path.basename(dirpath)
+                    unique_filename = f"{subdir_name}_{f}" if subdir_name != base_name else f
+
+                    destination = os.path.join(extract_dir, unique_filename)
+                    if os.path.exists(destination):  # In case even the unique name exists (very rare but just to be safe)
+                        unique_filename = f"{image_count}_{f}"  # Use UUID for guaranteed uniqueness
+                        destination = os.path.join(extract_dir, unique_filename)
+
+                    shutil.move(os.path.join(dirpath, f), destination)
+                    image_count += 1
+        self.dataset_image_counts[extract_dir] = image_count
+        # Remove any leftover empty directories
         for dirpath, _, _ in os.walk(extract_dir, topdown=False):
             if not os.listdir(dirpath):  # Empty directory
                 os.rmdir(dirpath)
-                folders_to_remove_after_walk.append(dirpath) 
+            
+        entry_text = f"{base_name} ({image_count})"
+        # Add the root extraction directory name to the listbox
+        self.dataset_filenames_listbox.insert(tk.END, entry_text)
 
-        # Populate the Listbox and dictionary with the final set of folders
-        final_subdirs = [d for d in os.listdir(extract_dir) if os.path.isdir(os.path.join(extract_dir, d))]
-        if final_subdirs:
-            for subdir in final_subdirs:
-                self.extracted_folders_dict[extract_dir].append(os.path.join(extract_dir, subdir))
-                self.dataset_filenames_listbox.insert(tk.END, subdir)
-        else:
-            self.extracted_folders_dict[extract_dir] = []
-            root_folder_name = os.path.basename(extract_dir)
-            self.dataset_filenames_listbox.insert(tk.END, root_folder_name)
-
-        self.master.after(0, self._finish_extraction)
+        self.master.after(0, self._finish_extraction) 
 
     def _finish_extraction(self):
         self.process_button['text'] = "Process"
@@ -286,7 +254,7 @@ class DataUploadView(ttk.Frame):
             return
 
         with self.process_lock:
-            threading.Thread(target=self.process_images, args=(actions,)).start()
+            threading.Thread(target=self.process_images, args=(actions, selected_indices,)).start()
         self.master.change_view('Gallery')
 
 
@@ -298,6 +266,8 @@ class DataUploadView(ttk.Frame):
             for image_path in image_paths:
                 # Analyzing age, gender, race, and emotion for the current image
                 analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
+                self.processed_images_count += 1
+                self.master.views['Gallery'].update_progress(self.processed_images_count)
                 print(analysis)
                 face_data = analysis[0]
                 
@@ -327,50 +297,53 @@ class DataUploadView(ttk.Frame):
             print(f"Error analyzing images. Error: {e}")
             return {}
 
-
-    def process_images(self, actions):
+    def process_images(self, actions, selected_indices):
         BATCH_SIZE = 3
-        # Get the indices of selected items
-        selected_indices = self.dataset_filenames_listbox.curselection()
-
-        # Get the list of extracted folder paths from the dictionary
-        all_extracted_folders = []
-        for root_folder, sub_folders in self.extracted_folders_dict.items():
-            all_extracted_folders.extend(sub_folders)
-
-        # Create directory to hold "candidate" images
-        base_dir = os.path.dirname(all_extracted_folders[0]) if all_extracted_folders else ""
+    
+        selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
+    
+        total_images = sum(self.dataset_image_counts[folder] for folder in selected_folders)
+        self.master.views['Gallery'].set_progress_maximum(total_images)
+        self.processed_images_count = 0
+    
+        base_dir = os.path.dirname(selected_folders[0]) if selected_folders else ""
         candidate_folder = os.path.join(base_dir, "Candidates").replace("\\", "/")
 
-        # Check if "candidates" folder already exists; if yes, then delete it
         if os.path.exists(candidate_folder):
             shutil.rmtree(candidate_folder)
             print(f"Deleted existing candidates folder: {candidate_folder}")
 
-        # Create a new "candidates" folder
         os.mkdir(candidate_folder)
 
-        for index in selected_indices:
-            folder_path = all_extracted_folders[index]  # Use indexed folder path from all_extracted_folders
-
-            # Make sure folder_path and candidate_folder are not the same
+        for folder_path in selected_folders:
             if folder_path == candidate_folder:
                 continue
 
-            img_paths = [os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path)]
-    
-            for batch_start in range(0, len(img_paths), BATCH_SIZE):
-                batch = img_paths[batch_start:batch_start + BATCH_SIZE]
+            for batch in self._batched_image_paths(folder_path, BATCH_SIZE):
                 accepted_images_dict = self.neural_network_filter(batch, actions)
-
                 for img_path, features in accepted_images_dict.items():
                     candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
                     actual_tags = list(features.values())
                     self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': actual_tags}
                     shutil.copy(img_path, candidate_image_path)
                     self.master.views['Gallery'].receive_data(candidate_folder, {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)})
-                    self.master.views['Gallery'].update_idletasks() 
+                    self.master.views['Gallery'].update_idletasks()
 
+    def _batched_image_paths(self, folder_path, BATCH_SIZE):
+        """
+        A generator that yields image paths in batches of size BATCH_SIZE
+        """
+        img_paths = (os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path))
+        batch = []
+        for img_path in img_paths:
+            batch.append(img_path)
+            if len(batch) == BATCH_SIZE:
+                yield batch
+                batch = []
+        if batch:  # for any remaining images in the last batch
+            yield batch
+
+                    
 
                 
 
