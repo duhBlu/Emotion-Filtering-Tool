@@ -298,7 +298,7 @@ class DataUploadView(ttk.Frame):
             return {}
 
     def process_images(self, actions, selected_indices):
-        BATCH_SIZE = 3
+        BATCH_SIZE = 5
     
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
     

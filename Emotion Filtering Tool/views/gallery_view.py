@@ -11,8 +11,13 @@ class GalleryView(ttk.Frame):
         self.initialized = True
         self.candidate_images = []
         self.image_tag_mappings = {}
+        self.image_positions = []
+        self.row_heights = []
+        self.current_col = 0
         self.current_row = 0
         self.current_col = 0
+        self.current_row = 0
+        self.current_row_width = 0 
         # Configure the main frame's row and column weights
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
@@ -41,7 +46,7 @@ class GalleryView(ttk.Frame):
 
         # Review button
         self.review_button = ttk.Button(self, text="Send to Manual Review", command=self.send_to_review)
-        self.review_button.grid(row=2, column=1, padx=20, pady=20, sticky='w')
+        self.review_button.grid(row=2, column=0, padx=20, pady=20, sticky='e')
         
         # progress bar
         self.progress_var = tk.IntVar() 
@@ -84,32 +89,28 @@ class GalleryView(ttk.Frame):
         if features:
             self.load_single_image(image_path, features)
 
-     # as images are filtered by the neural network, the gallery view will display them
     def load_single_image(self, image_path, features=None):
         try:
             with open(image_path, 'rb') as f:
                 image_data = f.read()
             image = Image.open(BytesIO(image_data))
-            resized_image = self.resize_image(image)
+        
+            # Assuming you have a way to get the display width, replace 'display_width' with actual width value
+            resized_image = self.resize_image_to_display_width(image, 200)  
+        
             tags = features if features is not None else self.image_tag_mapping.get(image_path, [])  # Fetch tags for this image if any
             self.add_image_to_gallery(resized_image, tags)
             print(f"Loaded {image_path} with tags: {tags}")
         except Exception as e:
             print(f"Error loading image {os.path.basename(image_path)}: {e}")
 
-    
-    def resize_image(self, image, max_width=300, max_height=300):
-        # Resize image while maintaining its aspect ratio
+    def resize_image_to_display_width(self, image, display_width):
+        # Resize image to fit the display width while maintaining its aspect ratio
         original_width, original_height = image.size
         aspect_ratio = original_width / original_height
-        if original_width > max_width or original_height > max_height:
-            if original_width > original_height:
-                new_width = max_width
-                new_height = int(new_width / aspect_ratio)
-            else:
-                new_height = max_height
-                new_width = int(new_height * aspect_ratio)
-            image = image.resize((new_width, new_height))
+        new_width = display_width
+        new_height = int(new_width / aspect_ratio)
+        image = image.resize((new_width, new_height))
         return image
 
     def add_image_to_gallery(self, image, tags):
@@ -117,32 +118,53 @@ class GalleryView(ttk.Frame):
             photo = ImageTk.PhotoImage(image)
             self.candidate_images.append(photo)  # Store a reference to the PhotoImage object
             
+            # Calculate image's contribution to row width (including padding)
+            image_width_with_padding = photo.width() + 10  # Assuming 5-pixel padding on each side
+            
+            # Check if adding this image would exceed the max frame width
+            if self.current_row_width + image_width_with_padding > self.canvas.winfo_width():
+                # Reset for new row
+                self.current_row_width = 0
+                self.current_col = 0
+                self.current_row += 1
+            
             img_label = ttk.Label(self.frame_images, image=photo)
             img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)  
             img_label.bind("<MouseWheel>", self._on_mousewheel)
             print(tags)
+            
             # Add tags as a label to the image
             if tags:
                 tag_text = ", ".join(tags)
                 tag_label = ttk.Label(self.frame_images, text=tag_text, background='white', anchor='e')
                 tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
 
+            # Update current row width and column
+            self.current_row_width += image_width_with_padding
+            self.current_col += 1
+
+            # Update scrollregion after adding the image
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+            self.update()  # Force the application to update the GUI
+            self.canvas.update_idletasks()
+
         except Exception as e:
             print(f"Error displaying image: {e}")
 
-        self.current_col += 1
-        if self.current_col > 3:
-            self.current_col = 0
-            self.current_row += 1
 
-        # Update scrollregion after adding the image
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+    def calculate_position(self, img_width):
+        # Check if the image can fit in the remaining space in the current row
+        if not self.image_positions or self.image_positions[-1] + img_width > self.MAX_WIDTH:
+            self.image_positions.append(0)  # Start a new row
+            y_position = sum(self.row_heights) if self.row_heights else 0
+            self.row_heights.append(200)  # Add the height of this row
+        else:
+            x_position = self.image_positions[-1]
+            y_position = sum(self.row_heights[:-1])  # Position at the start of the current row
+            self.image_positions[-1] += img_width  # Update the x position for the next image in this row
 
-        self.update()  # Force the application to update the GUI
-        self.canvas.update_idletasks()
-
-
-
+        return x_position, y_position
 
 
 
