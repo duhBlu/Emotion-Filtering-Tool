@@ -13,7 +13,7 @@ class GalleryView(ttk.Frame):
         self.image_tag_mappings = {}
         self.image_positions = []
         self.row_heights = []
-        self.current_col = 0
+        self.current_col = 0 # for keeping track of the image positions
         self.current_row = 0
         self.current_col = 0
         self.current_row = 0
@@ -23,7 +23,7 @@ class GalleryView(ttk.Frame):
         self.grid_rowconfigure(1, weight=1)
         self.grid_rowconfigure(2, weight=0)
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=0)  # This ensures scrollbar remains to the right
+        self.grid_columnconfigure(1, weight=0)
         self.create_widgets()
 
     def create_widgets(self):
@@ -43,6 +43,8 @@ class GalleryView(ttk.Frame):
 
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        
 
         # Review button
         self.review_button = ttk.Button(self, text="Send to Manual Review", command=self.send_to_review)
@@ -76,6 +78,7 @@ class GalleryView(ttk.Frame):
     # change this to not send images that have previously been sent to manual review
     # to avoid duplicates 
     def send_to_review(self):
+        self.candidate_images = []
         self.master.views['Manual Image Review'].show_images(self.candidate_images)
         self.master.change_view('Manual Image Review')
 
@@ -94,11 +97,8 @@ class GalleryView(ttk.Frame):
             with open(image_path, 'rb') as f:
                 image_data = f.read()
             image = Image.open(BytesIO(image_data))
-        
-            # Assuming you have a way to get the display width, replace 'display_width' with actual width value
             resized_image = self.resize_image_to_display_width(image, 200)  
-        
-            tags = features if features is not None else self.image_tag_mapping.get(image_path, [])  # Fetch tags for this image if any
+            tags = features if features is not None else self.image_tag_mapping.get(image_path, [])
             self.add_image_to_gallery(resized_image, tags)
             print(f"Loaded {image_path} with tags: {tags}")
         except Exception as e:
@@ -119,7 +119,7 @@ class GalleryView(ttk.Frame):
             self.candidate_images.append(photo)  # Store a reference to the PhotoImage object
             
             # Calculate image's contribution to row width (including padding)
-            image_width_with_padding = photo.width() + 10  # Assuming 5-pixel padding on each side
+            image_width_with_padding = photo.width() + 10 
             
             # Check if adding this image would exceed the max frame width
             if self.current_row_width + image_width_with_padding > self.canvas.winfo_width():
@@ -139,14 +139,12 @@ class GalleryView(ttk.Frame):
                 tag_label = ttk.Label(self.frame_images, text=tag_text, background='white', anchor='e')
                 tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
 
-            # Update current row width and column
-            # Update current row width and column
             self.current_row_width += image_width_with_padding
             self.current_col += 1
         
             self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-            self.update()  # Force the application to update the GUI
+            self.update()
             self.canvas.update_idletasks()
 
         except Exception as e:

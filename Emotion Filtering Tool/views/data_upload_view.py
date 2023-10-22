@@ -23,6 +23,7 @@ import tensorflow as tf
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
+bg3 = "#eff0f1"
 darker_bg = "#1f1f1f"
 secondary_bg = "#1e1e1e"
 text_color = "#F0F0F0"
@@ -44,6 +45,7 @@ class DataUploadView(ttk.Frame):
             'lady': 'female',
             'female person': 'female',
         }
+        self.colors = ['#{:02x}{:02x}{:02x}'.format(i, i, i) for i in range(0, 198, 207 // (15 - 1))] # Generate 15 shades of gray for the status text
         self.create_widgets()
 
 
@@ -56,10 +58,10 @@ class DataUploadView(ttk.Frame):
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1) # filtering options label, upload button, 
         self.grid_rowconfigure(2, weight=2) # notebook , dataset filename listbox
-        self.grid_rowconfigure(3, weight=0) # process button
+        self.grid_rowconfigure(3, weight=1) # process button
 
         self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=3)
+        self.grid_columnconfigure(1, weight=5)
 
         # Filtering Options label
         label_font = ("Helvetica", 14)
@@ -82,16 +84,25 @@ class DataUploadView(ttk.Frame):
 
         # Dataset Filename Listbox
         self.dataset_filenames_listbox = tk.Listbox(self, selectmode=tk.MULTIPLE, bg=bg2)
-        self.dataset_filenames_listbox.grid(row=2, column=0, padx=10, pady=2, sticky='nsew')
+        self.dataset_filenames_listbox.grid(row=2, column=0, padx=10, pady=(2, 10), sticky='nsew')
+        
+        self.status_text = tk.Text(self, height=5, bg=bg3, wrap=tk.WORD, state=tk.DISABLED, bd=0, highlightthickness=0)
+        self.status_text.grid(row=3, column=0, padx=10, pady=(2, 15), sticky='nsew')
 
+
+        # Add a scrollbar
+        self.status_scroll = tk.Scrollbar(self, command=self.status_text.yview)
+        self.status_text.config(yscrollcommand=self.status_scroll.set)
+        self.status_scroll.grid(row=3, column=0, sticky='nse')
+        
         style = ttk.Style()
-        style.configure("Red.TButton", foreground="red")
+        style.configure("Red.TButton", foreground="white")
 
         self.process_button = ttk.Button(self, text="Process", command=self.start_processing_images, style="Red.TButton")
         self.process_button.grid(row=3, column=1, padx=20, pady=20, sticky='e')
         self.process_button['text'] = "no dataset uploaded"
         self.process_button['state'] = tk.DISABLED
-
+    
 
     def create_emotion_tab(self):
         frame = ttk.Frame(self.notebook)
@@ -115,11 +126,9 @@ class DataUploadView(ttk.Frame):
     def create_race_tab(self):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Race(wip)")
-
         race_options = ["Option1", "Option2", "Option3"]  
         self.race_vars = {option: tk.BooleanVar() for option in race_options}
         
-
         for i, option in enumerate(race_options):
             ttk.Checkbutton(frame, text=option, variable=self.race_vars[option]).grid(row=i, column=0, sticky='w')
             
@@ -132,19 +141,30 @@ class DataUploadView(ttk.Frame):
         for i, option in enumerate(gender_options):
             ttk.Checkbutton(frame, text=option, variable=self.gender_vars[option]).grid(row=i, column=0, sticky='w')
     
+    def append_status(self, status_text):
+        """Appends the provided text to the top of the status text widget with fading effect."""
+        self.status_text.config(state=tk.NORMAL)  # Temporarily enable editing
+
+        # Insert new message with the darkest color at the beginning
+        self.status_text.insert("1.0", status_text + "\n")
+        self.status_text.tag_add("color0", "1.0 linestart", "1.0 lineend")
+        self.status_text.tag_configure("color0", foreground=self.colors[0])
+
+        # Adjust colors of the subsequent lines to create the fading effect
+        for i in range(1, len(self.colors)):
+            line_start = f"1.0 + {i} lines linestart"
+            line_end = f"1.0 + {i} lines lineend"
+            self.status_text.tag_remove(f"color{i-1}", line_start, line_end)
+            self.status_text.tag_add(f"color{i}", line_start, line_end)
+            self.status_text.tag_configure(f"color{i}", foreground=self.colors[i])
+
+        self.status_text.config(state=tk.DISABLED)
+ 
     '''
     Upload Dataset
     '''
-    def get_full_extension(file_path):
-        basename = os.path.basename(file_path)
-        if basename.endswith('.tar.gz'):
-            return '.tar.gz'
-        elif basename.endswith('.tar.bz2'):
-            return '.tar.bz2'
-        else:
-            return os.path.splitext(file_path)[-1].lower()
-
     def upload_dataset(self):
+        self.append_status("waiting selection...")
         file_path = filedialog.askopenfilename(filetypes=[
             ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2'),
             ('ZIP files', '*.zip'),
@@ -161,6 +181,7 @@ class DataUploadView(ttk.Frame):
             self.process_button['state'] = tk.DISABLED
 
             basename = os.path.basename(file_path)
+            self.append_status(f"beginning extraction of {basename}")
             if basename.endswith('.tar.gz'):
                 extension = '.tar.gz'
             elif basename.endswith('.tar.bz2'):
@@ -170,6 +191,7 @@ class DataUploadView(ttk.Frame):
  
             if extension in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
                 self.extract_archive(file_path, extension)
+   
     
     '''
     EXTRACT ARCHIVES
@@ -179,6 +201,7 @@ class DataUploadView(ttk.Frame):
         #ext = os.path.splitext(archive_path)[1]
         if ext == '.gz' or ext == '.bz2':  # Handle tar.gz and tar.bz2
             ext = '.'.join(os.path.basename(archive_path).split('.')[-2:])
+        self.append_status(f"extracting to {archive_path}")
         threading.Thread(target=self._threaded_extraction, args=(archive_path, ext), daemon=True).start()
 
 
@@ -190,31 +213,42 @@ class DataUploadView(ttk.Frame):
             shutil.rmtree(extract_dir)
         os.mkdir(extract_dir)
         if ext == '.zip':
+            self.append_status(f"extracting zip")
             with zipfile.ZipFile(archive_path, 'r') as archive_ref:
                 archive_ref.extractall(extract_dir)
         elif ext in ['.tar', '.tar.gz', '.tar.bz2']:
+            self.append_status(f"extracting {ext}")
             with tarfile.open(archive_path) as archive_ref:
                 archive_ref.extractall(extract_dir)
 
         # Move all image files to the root extract directory (flatten the structure)
         image_count = 0  
+        # adding comments to explan the following code'
+        # os.walk() returns a generator that yields a tuple of (dirpath, dirnames, filenames)
 
+        self.append_status(f"searching directories for images...")
         for dirpath, _, filenames in os.walk(extract_dir):
             for f in filenames:
                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')):
                     # Modify filename to make it unique based on its original directory
                     subdir_name = os.path.basename(dirpath)
-                    unique_filename = f"{subdir_name}_{f}" if subdir_name != base_name else f
+                    self.append_status(f"found {subdir_name}")
+                    
+                    unique_filename = f"{subdir_name}_{f}" if subdir_name != base_name else f # to prevent conflits with images with same name
 
                     destination = os.path.join(extract_dir, unique_filename)
                     if os.path.exists(destination):  # In case even the unique name exists (very rare but just to be safe)
-                        unique_filename = f"{image_count}_{f}"  # Use UUID for guaranteed uniqueness
+                        unique_filename = f"{image_count}_{f}" 
                         destination = os.path.join(extract_dir, unique_filename)
 
                     shutil.move(os.path.join(dirpath, f), destination)
                     image_count += 1
+                    
+        self.append_status(f"finished extracting {image_count}")
         self.dataset_image_counts[extract_dir] = image_count
+        
         # Remove any leftover empty directories
+        self.append_status(f"tidying up...please hold")
         for dirpath, _, _ in os.walk(extract_dir, topdown=False):
             if not os.listdir(dirpath):  # Empty directory
                 os.rmdir(dirpath)
@@ -228,6 +262,8 @@ class DataUploadView(ttk.Frame):
     def _finish_extraction(self):
         self.process_button['text'] = "Process"
         self.process_button['state'] = tk.NORMAL    
+        self.append_status(f"extraction complete")
+        
 
     '''
     PROCESSING IMAGES
@@ -260,7 +296,7 @@ class DataUploadView(ttk.Frame):
 
 
     # Neural netork source https://github.com/serengil/deepface
-    def neural_network_filter(self, image_paths, actions): #, sizeX, sizeY):
+    def neural_network_filter(self, image_paths, actions):
         accepted_images = {}
         try:
             for image_path in image_paths:
@@ -283,6 +319,10 @@ class DataUploadView(ttk.Frame):
 
 
                 # Check if the user's desired emotion matches the detected dominant emotion
+                # currently only gender is handled because it was the easiest to implement.
+                # need to create mappings from the DeepFace's analysis to the users specified emotion
+                # i.e. deepface labeled an image neutral but might be sad or curious. 
+                # need a sophisticated way to match the features from the analysis to the selected feature
                 if (
                     (not actions.get('emotion') or features['emotion'] in actions['emotion']) and
                     (not actions.get('age') or features['age'] in actions.get('age')) and
@@ -331,6 +371,7 @@ class DataUploadView(ttk.Frame):
 
     def _batched_image_paths(self, folder_path, BATCH_SIZE):
         """
+        Lazy Loading
         A generator that yields image paths in batches of size BATCH_SIZE
         """
         img_paths = (os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path))
@@ -340,7 +381,7 @@ class DataUploadView(ttk.Frame):
             if len(batch) == BATCH_SIZE:
                 yield batch
                 batch = []
-        if batch:  # for any remaining images in the last batch
+        if batch:
             yield batch
 
                     
