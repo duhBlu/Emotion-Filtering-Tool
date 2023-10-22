@@ -50,11 +50,20 @@ class GalleryView(ttk.Frame):
         self.review_button = ttk.Button(self, text="Send to Manual Review", command=self.send_to_review)
         self.review_button.grid(row=2, column=0, padx=20, pady=20, sticky='e')
         
+        # cancel the processing so user can change the settings without having to wait for the processing to finish
+        self.stop_processing_button = ttk.Button(self, text="Stop processing", command=self.stop_processing)
+        self.stop_processing_button.grid(row=2, column=0, padx=(5, 20), pady=20, sticky='w')  # Adjusted padx
+        
+        # clear the gallery so user can start over  without sending the images to manual review
+        self.clear_clear_button = ttk.Button(self, text="clear", command=self.clear_gallery)
+        self.clear_clear_button.grid(row=2, column=0, padx=(130, 5), pady=20, sticky='w') 
+        
         # progress bar
         self.progress_var = tk.IntVar() 
         self.progress_bar = ttk.Progressbar(self, variable=self.progress_var, orient="horizontal", length=300, mode="determinate")
-        self.progress_bar.grid(row=0, column=0, columnspan=2, pady=20, padx=(30, 20), sticky='ew')
+        self.progress_bar.grid(row=0, column=0, columnspan=2, pady=20, padx=(80, 20), sticky='ew')
         label_font = ("Helvetica", 14)
+        
         # Label to display the progress
         self.progress_label = ttk.Label(self, text="0/0", font=label_font)
         self.progress_label.grid(row=0, column=0, pady=20, padx=(10, 15), sticky='w')
@@ -69,18 +78,19 @@ class GalleryView(ttk.Frame):
             self.progress_bar["maximum"] = max_value
 
     def update_progress(self, value):
-        # if(value > self.progress_bar["maximum"]):
-        #     value = self.progress_bar["maximum"]
         self.progress_var.set(value)
         self.progress_label["text"] = f"{value}/{self.progress_bar['maximum']}"
         
-    # DEV NOTE
-    # change this to not send images that have previously been sent to manual review
-    # to avoid duplicates 
+
     def send_to_review(self):
-        self.candidate_images = []
         self.master.views['Manual Image Review'].show_images(self.candidate_images)
         self.master.change_view('Manual Image Review')
+        self.clear_gallery()
+
+    def stop_processing(self):
+        self.master.views['Data Upload & Image Selection'].cancellation_requested = True
+        self.set_progress_maximum(0)
+        self.update_progress(0)
 
     # recieves the images from the candidate folder, along with their tags
     def receive_data(self, candidate_folder, image_tag_mapping):
@@ -88,7 +98,7 @@ class GalleryView(ttk.Frame):
         # Combine with existing image_tag_mappings if present
         self.image_tag_mappings = {**self.image_tag_mappings, **image_tag_mapping}
         image_path = list(image_tag_mapping.keys())[0] if image_tag_mapping else None
-        features = image_tag_mapping.get(image_path, {}).get('tags', None)
+        features = image_tag_mapping.get(image_path, {}).get('tags', {})
         if features:
             self.load_single_image(image_path, features)
 
@@ -97,12 +107,15 @@ class GalleryView(ttk.Frame):
             with open(image_path, 'rb') as f:
                 image_data = f.read()
             image = Image.open(BytesIO(image_data))
+            target_width = self.master.views["Data Upload & Image Selection"].width_entry.get()
             resized_image = self.resize_image_to_display_width(image, 200)  
-            tags = features if features is not None else self.image_tag_mapping.get(image_path, [])
-            self.add_image_to_gallery(resized_image, tags)
-            print(f"Loaded {image_path} with tags: {tags}")
+            tags = features if features else self.image_tag_mappings.get(image_path, {}).get('tags', {})
+            formatted_tags = ([f"{v} " for _, v in tags.items()])
+            self.add_image_to_gallery(resized_image, formatted_tags)
+            print(f"Loaded {image_path} with tags: {formatted_tags}")
         except Exception as e:
-            print(f"Error loading image {os.path.basename(image_path)}: {e}")
+            print(f"Error loading {image_path}. Reason: {e}")
+
 
     def resize_image_to_display_width(self, image, display_width):
         # Resize image to fit the display width while maintaining its aspect ratio
@@ -149,6 +162,21 @@ class GalleryView(ttk.Frame):
 
         except Exception as e:
             print(f"Error displaying image: {e}")
+            
+    def clear_gallery(self):
+        """Clears all images from the gallery view."""
+        for widget in self.frame_images.winfo_children():
+            widget.destroy()
+
+        # Reset attributes to their initial states
+        self.candidate_images = []
+        self.image_tag_mappings = {}
+        self.image_positions = []
+        self.row_heights = []
+        self.current_row_width = 0
+        self.current_col = 0
+        self.current_row = 0
+
 
 
 

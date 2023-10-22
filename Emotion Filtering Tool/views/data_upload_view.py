@@ -35,6 +35,7 @@ class DataUploadView(ttk.Frame):
         self.process_lock = threading.Lock()
         self.dataset_image_counts = {}
         self.image_tag_mappings = {}
+        self.cancellation_requested = False
         self.label_mapping = {
             'man': 'male',
             'boy': 'male',
@@ -44,6 +45,15 @@ class DataUploadView(ttk.Frame):
             'girl': 'female',
             'lady': 'female',
             'female person': 'female',
+        }
+        self.emotion_mapping = {
+            'angry': 'angry',
+            'disgust': 'angry',
+            'fear': 'confused',
+            'happy': 'happy',
+            'sad': 'sad',
+            'surprise': 'surprised',
+            'neutral': 'neutral'
         }
         self.colors = ['#{:02x}{:02x}{:02x}'.format(i, i, i) for i in range(0, 198, 207 // (15 - 1))] # Generate 15 shades of gray for the status text
         self.create_widgets()
@@ -60,7 +70,7 @@ class DataUploadView(ttk.Frame):
         self.grid_rowconfigure(2, weight=2) # notebook , dataset filename listbox
         self.grid_rowconfigure(3, weight=1) # process button
 
-        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=2)
         self.grid_columnconfigure(1, weight=5)
 
         # Filtering Options label
@@ -70,7 +80,7 @@ class DataUploadView(ttk.Frame):
 
         # Create the notebook (tabbed interface)
         self.notebook = ttk.Notebook(self)
-        self.notebook.grid(row=2, column=1, rowspan=1, padx=10, pady=10, sticky='nsew')
+        self.notebook.grid(row=2, column=1, rowspan=2, padx=10, pady=10, sticky='nsew')
 
         # Tabs for the notebook
         self.create_emotion_tab()
@@ -94,25 +104,34 @@ class DataUploadView(ttk.Frame):
         self.status_scroll = tk.Scrollbar(self, command=self.status_text.yview)
         self.status_text.config(yscrollcommand=self.status_scroll.set)
         self.status_scroll.grid(row=3, column=0, sticky='nse')
-        
-        style = ttk.Style()
-        style.configure("Red.TButton", foreground="white")
 
-        self.process_button = ttk.Button(self, text="Process", command=self.start_processing_images, style="Red.TButton")
-        self.process_button.grid(row=3, column=1, padx=20, pady=20, sticky='e')
+        self.process_button = ttk.Button(self, text="Process", command=self.start_processing_images)
+        self.process_button.grid(row=3, column=1, padx=20, pady=20, sticky='se')
         self.process_button['text'] = "no dataset uploaded"
         self.process_button['state'] = tk.DISABLED
+        
+        self.width_label = ttk.Label(self, text="Width:")
+        self.width_label.grid(row=3, column=1, sticky='w', padx=(20, 0), pady=(220, 0))
     
+        self.width_entry = ttk.Entry(self, width=5)
+        self.width_entry.grid(row=3, column=1, sticky='w', padx=(60, 0), pady=(220, 0))
+        self.width_entry.insert(0, "200")  # default width
+
+
+        # Move the process button slightly to the right to accommodate the new entries
+        self.process_button.grid(row=3, column=1, padx=(250, 20), pady=20, sticky='se')
+        
+        
 
     def create_emotion_tab(self):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Emotions")
 
-        emotion_options = ["Angry", "Crying", "Sad", "Surprised", "Confused", "Shy"] 
+        emotion_options = ["Angry", "Crying", "Sad", "Surprised", "Confused", "Shy", "Neutral"] 
         self.emotion_vars = {option: tk.BooleanVar() for option in emotion_options}  # Each emotion gets its own BooleanVar
         
         for i, option in enumerate(emotion_options):
-            ttk.Checkbutton(frame, text=option, variable=self.emotion_vars[option]).grid(row=i, column=0, sticky='w')
+            ttk.Checkbutton(frame, text=option, variable=self.emotion_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
 
     def create_age_tab(self):
         frame = ttk.Frame(self.notebook)
@@ -121,7 +140,7 @@ class DataUploadView(ttk.Frame):
         age_options = ["Kids", "Adult", "Elder"]
         self.age_vars = {option: tk.BooleanVar() for option in age_options}
         for i, option in enumerate(age_options):
-            ttk.Checkbutton(frame, text=option, variable=self.age_vars[option]).grid(row=i, column=0, sticky='w')
+            ttk.Checkbutton(frame, text=option, variable=self.age_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
             
     def create_race_tab(self):
         frame = ttk.Frame(self.notebook)
@@ -130,7 +149,7 @@ class DataUploadView(ttk.Frame):
         self.race_vars = {option: tk.BooleanVar() for option in race_options}
         
         for i, option in enumerate(race_options):
-            ttk.Checkbutton(frame, text=option, variable=self.race_vars[option]).grid(row=i, column=0, sticky='w')
+            ttk.Checkbutton(frame, text=option, variable=self.race_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
             
     def create_gender_tab(self):
         frame = ttk.Frame(self.notebook)
@@ -139,7 +158,7 @@ class DataUploadView(ttk.Frame):
         gender_options = ["male", "female"]  
         self.gender_vars = {option: tk.BooleanVar() for option in gender_options}
         for i, option in enumerate(gender_options):
-            ttk.Checkbutton(frame, text=option, variable=self.gender_vars[option]).grid(row=i, column=0, sticky='w')
+            ttk.Checkbutton(frame, text=option, variable=self.gender_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
     
     def append_status(self, status_text):
         """Appends the provided text to the top of the status text widget with fading effect."""
@@ -232,7 +251,6 @@ class DataUploadView(ttk.Frame):
                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')):
                     # Modify filename to make it unique based on its original directory
                     subdir_name = os.path.basename(dirpath)
-                    self.append_status(f"found {subdir_name}")
                     
                     unique_filename = f"{subdir_name}_{f}" if subdir_name != base_name else f # to prevent conflits with images with same name
 
@@ -244,11 +262,11 @@ class DataUploadView(ttk.Frame):
                     shutil.move(os.path.join(dirpath, f), destination)
                     image_count += 1
                     
-        self.append_status(f"finished extracting {image_count}")
+        self.append_status(f"extracted {image_count} images")
         self.dataset_image_counts[extract_dir] = image_count
         
         # Remove any leftover empty directories
-        self.append_status(f"tidying up...please hold")
+        self.append_status(f"finishing up")
         for dirpath, _, _ in os.walk(extract_dir, topdown=False):
             if not os.listdir(dirpath):  # Empty directory
                 os.rmdir(dirpath)
@@ -262,7 +280,7 @@ class DataUploadView(ttk.Frame):
     def _finish_extraction(self):
         self.process_button['text'] = "Process"
         self.process_button['state'] = tk.NORMAL    
-        self.append_status(f"extraction complete")
+        self.append_status(f"upload complete")
         
 
     '''
@@ -293,23 +311,33 @@ class DataUploadView(ttk.Frame):
             threading.Thread(target=self.process_images, args=(actions, selected_indices,)).start()
         self.master.change_view('Gallery')
 
-
-
     # Neural netork source https://github.com/serengil/deepface
     def neural_network_filter(self, image_paths, actions):
         accepted_images = {}
         try:
+            
             for image_path in image_paths:
                 # Analyzing age, gender, race, and emotion for the current image
                 analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
+                print(analysis)
                 self.processed_images_count += 1
                 self.master.views['Gallery'].update_progress(self.processed_images_count)
-                print(analysis)
-                face_data = analysis[0]
                 
+                face_data = analysis[0]
                 features = {}
                 if actions.get('emotion'):
-                    features['emotion'] = face_data['dominant_emotion'].lower()
+                    dominant_emotion = face_data['dominant_emotion'].lower()
+
+                    mapped_emotion = self.emotion_mapping.get(dominant_emotion, dominant_emotion)
+
+                    emotion_scores = face_data['emotion']
+                    if emotion_scores.get('sad', 0) > 20:  # 20% is our threshold, you can adjust as needed
+                        mapped_emotion = 'crying'  # If sadness score is significant, consider it as crying
+
+                    if emotion_scores.get('neutral', 0) > 40 and mapped_emotion == 'confused':  # If neutral score is very high and emotion was confused
+                        mapped_emotion = 'shy'  # Consider the emotion as shy
+
+                    features['emotion'] = mapped_emotion
                 if actions.get('gender'):
                     features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
                 if actions.get('race'):
@@ -323,11 +351,12 @@ class DataUploadView(ttk.Frame):
                 # need to create mappings from the DeepFace's analysis to the users specified emotion
                 # i.e. deepface labeled an image neutral but might be sad or curious. 
                 # need a sophisticated way to match the features from the analysis to the selected feature
+
                 if (
-                    (not actions.get('emotion') or features['emotion'] in actions['emotion']) and
-                    (not actions.get('age') or features['age'] in actions.get('age')) and
-                    (not actions.get('race') or features['race'] in actions.get('race')) and
-                    (not actions.get('gender') or features['gender'] in actions.get('gender'))
+                    (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
+                    (not actions.get('age') or features['age'] in [age.lower() for age in actions.get('age')]) and
+                    (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
+                    (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
                 ):
                     accepted_images[image_path] = features
 
@@ -360,12 +389,16 @@ class DataUploadView(ttk.Frame):
                 continue
 
             for batch in self._batched_image_paths(folder_path, BATCH_SIZE):
+                
                 accepted_images_dict = self.neural_network_filter(batch, actions)
+                
                 for img_path, features in accepted_images_dict.items():
+                    if self.cancellation_requested:
+                        self.cancellation_requested = False
+                        return
                     candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
-                    actual_tags = list(features.values())
-                    self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': actual_tags}
                     shutil.copy(img_path, candidate_image_path)
+                    self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': features}
                     self.master.views['Gallery'].receive_data(candidate_folder, {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)})
                     self.master.views['Gallery'].update_idletasks()
 
@@ -377,6 +410,9 @@ class DataUploadView(ttk.Frame):
         img_paths = (os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path))
         batch = []
         for img_path in img_paths:
+            if self.cancellation_requested:
+                self.cancellation_requested = False
+                return
             batch.append(img_path)
             if len(batch) == BATCH_SIZE:
                 yield batch

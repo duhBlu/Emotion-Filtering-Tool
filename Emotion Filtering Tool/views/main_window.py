@@ -99,6 +99,7 @@ class MainWindow(tk.Frame):
        
     # cleanup system made folders
     def destroy(self):
+        self.views['Data Upload & Image Selection'].cancellation_requested = True
         data_upload_view = self.views.get('Data Upload & Image Selection')
     
         if data_upload_view:
