@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from collections import defaultdict
-from PIL import Image, ImageTk
+from PIL import ImageTk
 import tkinter.messagebox as messagebox
 
 class AugmentationView(ttk.Frame):
@@ -20,7 +20,10 @@ class AugmentationView(ttk.Frame):
         self.changed_images = set()
         self.original_images = {} 
         self.create_widgets()
-
+        
+    '''
+    Initialize UI
+    '''
     def create_widgets(self):
         self.canvas = tk.Canvas(self)
         self.canvas.grid(row=0, column=0, sticky="nsew")
@@ -48,11 +51,17 @@ class AugmentationView(ttk.Frame):
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
 
+    '''
+    Send Images to Data Export View
+    '''
     def save_augmented_images(self):
         self.master.views['Dataset Export Options'].receive_images(self.photo_images)
         self.photo_images = []
         self.master.change_view('Dataset Export Options')
-            
+    
+    '''
+    Load and Display Images
+    '''        
     def show_images(self, photo_images):
         self.photo_images = photo_images
         self.original_images = {idx: ImageTk.getimage(img) for idx, img in enumerate(self.photo_images)}  # Store original PIL images
@@ -95,7 +104,10 @@ class AugmentationView(ttk.Frame):
         self.current_col += 1
         
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
+    
+    '''
+    Image Selection logic
+    ''' 
     def image_click(self, idx, var):
         # Toggle checkbox state
         var.set(1 - var.get())
@@ -105,7 +117,9 @@ class AugmentationView(ttk.Frame):
     def toggle_selection(self, idx, var):
         self.selected_images[idx] = bool(var.get())          
         
-    # Augmentation Window and Functions
+    '''
+    Augmentation Window and Logic
+    ''' 
     def augment_images(self):
         # Initialize counters and make them instance variables
         self.current_image = 0
@@ -211,7 +225,6 @@ class AugmentationView(ttk.Frame):
             # No more images to process, destroy the window
             augment_window.destroy()
             
-
     def cancel_augment(self, img_label, augment_window, label_text):
         # Restore the original image from the stored dictionary
         original_pil_image = self.original_images[self.current_image - 1]
@@ -220,7 +233,6 @@ class AugmentationView(ttk.Frame):
         self.changed_images.remove(self.current_image)
         self.update_buttons()
 
-            
     def show_next_image(self, idx, img_label, augment_window):
         # Display next image and apply augmentation here
         # For demonstration, just displaying the image

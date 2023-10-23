@@ -1,24 +1,12 @@
-from ast import arg
-from asyncio.windows_events import NULL
-from doctest import debug
 from tkinter import ttk, filedialog
 import tkinter as tk
 import threading
 import zipfile
 import tarfile
 import os
-import random
 import shutil
-from PIL import Image, ImageTk
-from io import BytesIO
-import json
-import csv
-import cv2
-import xml.etree.ElementTree as ET
-import time
 import tkinter.messagebox as messagebox
 from deepface import DeepFace
-import tensorflow as tf
 
 
 bg1 = "#bfbfbf"
@@ -55,10 +43,12 @@ class DataUploadView(ttk.Frame):
             'surprise': 'surprised',
             'neutral': 'neutral'
         }
-        self.colors = ['#{:02x}{:02x}{:02x}'.format(i, i, i) for i in range(0, 198, 207 // (15 - 1))] # Generate 15 shades of gray for the status text
+        self.colors = ['#{:02x}{:02x}{:02x}'.format(i, i, i) for i in range(0, 198, 207 // (15 - 1))] 
         self.create_widgets()
-
-
+    
+    '''
+    Initialize UI
+    '''
     def create_widgets(self):
         self.row_frames = [tk.Frame(self, bg=color) for color in [bg1]]
         for i, row_frame in enumerate(self.row_frames):
@@ -121,8 +111,6 @@ class DataUploadView(ttk.Frame):
         # Move the process button slightly to the right to accommodate the new entries
         self.process_button.grid(row=3, column=1, padx=(250, 20), pady=20, sticky='se')
         
-        
-
     def create_emotion_tab(self):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Emotions")
@@ -223,7 +211,6 @@ class DataUploadView(ttk.Frame):
         self.append_status(f"extracting to {archive_path}")
         threading.Thread(target=self._threaded_extraction, args=(archive_path, ext), daemon=True).start()
 
-
     def _threaded_extraction(self, archive_path, ext):
         base_name = os.path.basename(archive_path).replace(ext, '')
         extract_dir = os.path.join(os.path.dirname(archive_path), base_name)
@@ -282,7 +269,6 @@ class DataUploadView(ttk.Frame):
         self.process_button['state'] = tk.NORMAL    
         self.append_status(f"upload complete")
         
-
     '''
     PROCESSING IMAGES
     '''

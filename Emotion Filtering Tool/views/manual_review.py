@@ -1,6 +1,5 @@
 import tkinter as tk
 from tkinter import ttk
-from PIL import Image, ImageTk
 from collections import defaultdict
 
 class ManualReviewView(ttk.Frame):
@@ -31,6 +30,10 @@ class ManualReviewView(ttk.Frame):
                                                    }
                            )]
                          )
+        
+    '''
+    Initialize UI
+    '''
     def create_widgets(self):
         self.canvas = tk.Canvas(self)
         self.canvas.grid(row=0, column=0, sticky="nsew")
@@ -66,14 +69,20 @@ class ManualReviewView(ttk.Frame):
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-
+        
+    '''
+    Send data to Augmentation view
+    '''
     def send_to_augment(self):
         self.master.views['Image Augmentation'].show_images(self.accepted_images)
         self.master.change_view('Image Augmentation')
         self.accepted_images = []
         self.accepted_count = 0
         self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
-
+    
+    '''
+    Clear Images
+    '''
     def clear_review(self):
         """Clears all images from the review view."""
         for widget in self.frame_images.winfo_children():
@@ -87,7 +96,10 @@ class ManualReviewView(ttk.Frame):
         self.current_row = 0 
         self.current_col = 0
         self.current_row_width = 0 
-        
+    
+    '''
+    Load and Display Images
+    '''
     def show_images(self, new_photo_images):
         # Append new images to existing list
         start_idx = len(self.photo_images)
@@ -99,7 +111,6 @@ class ManualReviewView(ttk.Frame):
 
         # Update canvas scroll region
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        
         
     def add_image_to_review(self, idx, photo):
         image_width_with_padding = photo.width() + 10 + 20 
@@ -158,7 +169,10 @@ class ManualReviewView(ttk.Frame):
         self.current_col += 1
     
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-        
+   
+    '''
+    Creating/modifying Tag Comboboxes
+    '''
     def create_combobox(self, parent_frame, options, default_value, col_offset):
         """Helper function to create a Combobox."""
         max_option_length = max([len(option) for option in options])
@@ -169,7 +183,6 @@ class ManualReviewView(ttk.Frame):
 
         return combobox
 
-
     def update_tag(self, idx, combobox, feature):
         """Update the image tag mappings."""
         if idx in self.master.views["Gallery"].image_tag_mappings:
@@ -178,7 +191,10 @@ class ManualReviewView(ttk.Frame):
             self.master.views["Gallery"].image_tag_mappings[idx] = {feature: combobox.get()}
         new_width = len(combobox.get())
         combobox.config(width=new_width)
-
+    
+    '''
+    Image Selection/Acceptance/Rejection logic
+    '''
     def image_click(self, idx, var):
         # Toggle checkbox state
         var.set(1 - var.get())

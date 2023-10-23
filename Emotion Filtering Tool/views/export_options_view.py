@@ -1,8 +1,6 @@
-from email.mime import image
 import random
 import tkinter as tk
 from tkinter import ttk
-import subprocess
 from tkinter import filedialog
 import os
 from zipfile import ZipFile

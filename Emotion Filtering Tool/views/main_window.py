@@ -1,15 +1,12 @@
 import tkinter as tk
-from tkinter import ttk
 import shutil
 import os
-import subprocess
 from ttkthemes import ThemedTk
 from views.data_upload_view import DataUploadView
 from views.gallery_view import GalleryView
 from views.manual_review import ManualReviewView
 from views.augmentation_view import AugmentationView
 from views.export_options_view import ExportOptionView
-import tensorflow as tf
 
 class MainWindow(tk.Frame):
     def __init__(self, master=None):
@@ -39,21 +36,6 @@ class MainWindow(tk.Frame):
         self.views['Image Augmentation'] = AugmentationView(self)
         self.views['Dataset Export Options'] = ExportOptionView(self)
 
-        # Unselected button color
-        self.style = ttk.Style()
-        self.style.configure(
-            "Custom.TButton",
-            font=("Arial", 12), 
-            foreground="blue",
-            background="SystemButtonFace"
-        )
-        # Selected button color
-        self.style.configure(
-            "Selected.TButton",
-            font=("Arial", 12),
-            foreground="white",
-            background="blue"
-        )
 
         # Make the list of buttons
         buttons = ['Data Upload & Image Selection', 
@@ -118,7 +100,6 @@ class MainWindow(tk.Frame):
                 print(f"Deleted candidate folder: {candidate_folder}")  
         root.quit()  
     
-
 if __name__ == "__main__":
     root = ThemedTk(theme="breeze")
     root.title('Emotion Filtering Tool')

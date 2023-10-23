@@ -1,9 +1,7 @@
-from msilib.schema import TextStyle
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
 from io import BytesIO
-import os
 
 class GalleryView(ttk.Frame):
     def __init__(self, master=None):
@@ -26,6 +24,9 @@ class GalleryView(ttk.Frame):
         self.grid_columnconfigure(1, weight=0)
         self.create_widgets()
 
+    '''
+    Initialize UI
+    ''' 
     def create_widgets(self):
         # Configure canvas and scrollbar
         self.canvas = tk.Canvas(self)
@@ -73,26 +74,35 @@ class GalleryView(ttk.Frame):
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-     
+    '''
+    Config UI
+    '''  
     def set_progress_maximum(self, max_value):
             self.progress_bar["maximum"] = max_value
 
     def update_progress(self, value):
         self.progress_var.set(value)
         self.progress_label["text"] = f"{value}/{self.progress_bar['maximum']}"
-        
-
+    
+    '''
+    Send Data to Manual Review
+    '''     
     def send_to_review(self):
         self.master.views['Manual Image Review'].show_images(self.candidate_images)
         self.master.change_view('Manual Image Review')
         self.clear_gallery()
-
+    
+    '''
+    Cancel the processing
+    '''   
     def stop_processing(self):
         self.master.views['Data Upload & Image Selection'].cancellation_requested = True
         self.set_progress_maximum(0)
         self.update_progress(0)
 
-    # recieves the images from the candidate folder, along with their tags
+    '''
+    Recieve and display data
+    '''   
     def receive_data(self, candidate_folder, image_tag_mapping):
         self.candidate_folder = candidate_folder
         # Combine with existing image_tag_mappings if present
@@ -115,7 +125,6 @@ class GalleryView(ttk.Frame):
             print(f"Loaded {image_path} with tags: {formatted_tags}")
         except Exception as e:
             print(f"Error loading {image_path}. Reason: {e}")
-
 
     def resize_image_to_display_width(self, image, display_width):
         # Resize image to fit the display width while maintaining its aspect ratio
@@ -163,6 +172,9 @@ class GalleryView(ttk.Frame):
         except Exception as e:
             print(f"Error displaying image: {e}")
             
+    '''
+    Clear Images
+    '''         
     def clear_gallery(self):
         """Clears all images from the gallery view."""
         for widget in self.frame_images.winfo_children():
