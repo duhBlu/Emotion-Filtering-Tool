@@ -307,7 +307,7 @@ class DataUploadView(ttk.Frame):
             messagebox.showinfo("No Filtering Options Selected", "Please select at least one filtering option.")
             return
         
-        NUM_THREADS = os.cpu_count() - 2 or 4
+        NUM_THREADS = os.cpu_count() or 4
       
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
         # Partition the image file indexes into the number of threads specified

@@ -14,9 +14,9 @@ class GalleryView(ttk.Frame):
         self.row_heights = []
         self.current_col = 0 # for keeping track of the image positions
         self.current_row = 0
-        self.current_col = 0
-        self.current_row = 0
         self.current_row_width = 0 
+        self.last_loaded_index = 0
+        self.images_loaded = 0
         # Configure the main frame's row and column weights
         self.grid_rowconfigure(0, weight=0)
         self.grid_rowconfigure(1, weight=1)
@@ -60,6 +60,9 @@ class GalleryView(ttk.Frame):
         self.clear_clear_button = ttk.Button(self, text="clear", command=self.clear_gallery)
         self.clear_clear_button.grid(row=2, column=0, padx=(130, 5), pady=20, sticky='w') 
         
+        self.load_more_button = ttk.Button(self, text="Load More Images", command=self.load_more_images)
+        self.load_more_button.grid(row=3, column=0, padx=20, pady=20, sticky='e')
+        
         # progress bar
         self.progress_var = tk.IntVar() 
         self.progress_bar = ttk.Progressbar(self, variable=self.progress_var, orient="horizontal", length=300, mode="determinate")
@@ -72,9 +75,15 @@ class GalleryView(ttk.Frame):
 
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-    
+        
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
+
+
+
+
+    
+
     '''
     Config UI
     '''  
@@ -104,17 +113,44 @@ class GalleryView(ttk.Frame):
 
     '''
     Recieve and display data
+    
+    when loading images need to provide button to load more images
+    loading more images should load the next set of (100 % (# columns)) images
+    load in the first 100 images initially, then stop loading in images,
+    and wait for the user to click the load more button, then load in the next
+    (100 % (# columns)) images.
     '''   
+    def get_visible_area(self):
+        return self.canvas.yview()
+    
+
     def receive_data(self, candidate_folder, image_tag_mapping):
         self.candidate_folder = candidate_folder
         # Combine with existing image_tag_mappings if present
         self.image_tag_mappings = {**self.image_tag_mappings, **image_tag_mapping}
-        image_path = list(image_tag_mapping.keys())[0] if image_tag_mapping else None
-        features = image_tag_mapping.get(image_path, {}).get('tags', {})
-        if features:
-            self.load_single_image(image_path, features)
+    
+        # Load the first set of images initially
+        if self.images_loaded < 100:
+            image_path = list(image_tag_mapping.keys())[0] if image_tag_mapping else None
+            features = image_tag_mapping.get(image_path, {}).get('tags', {})
+            if features:
+                self.load_single_image(image_path, features)
+                self.images_loaded += 1
+
+
+    def images_to_load(self):
+        top, bottom = self.get_visible_area()
+        total_images = len(self.candidate_images)
+    
+        # Estimate indices of images to display based on visible portion of canvas
+        start_index = int(top * total_images)
+        end_index = min(int(bottom * total_images) + 5, total_images)  # Ensure it's within bounds
+    
+        return range(start_index, end_index)
 
     def load_single_image(self, image_path, features=None):
+        if image_path in self.candidate_images :  # Check if image is already loaded
+            return
         try:
             with open(image_path, 'rb') as f:
                 image_data = f.read()
@@ -194,6 +230,7 @@ class GalleryView(ttk.Frame):
         self.current_row_width = 0
         self.current_col = 0
         self.current_row = 0
+        self.images_loaded = 0
         candidates_dir = self.master.views["Data Upload & Image Selection"].candidates_dir
         for filename in os.listdir(candidates_dir):
             file_path = os.path.join(candidates_dir, filename)
@@ -203,8 +240,3 @@ class GalleryView(ttk.Frame):
             except Exception as e:
                 print(f"Failed to delete {file_path}. Reason: {e}")
 
-
-
-
-
-        
