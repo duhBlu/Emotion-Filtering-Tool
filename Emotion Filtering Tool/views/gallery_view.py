@@ -60,9 +60,6 @@ class GalleryView(ttk.Frame):
         self.clear_clear_button = ttk.Button(self, text="clear", command=self.clear_gallery)
         self.clear_clear_button.grid(row=2, column=0, padx=(130, 5), pady=20, sticky='w') 
         
-        self.load_more_button = ttk.Button(self, text="Load More Images", command=self.load_more_images)
-        self.load_more_button.grid(row=3, column=0, padx=20, pady=20, sticky='e')
-        
         # progress bar
         self.progress_var = tk.IntVar() 
         self.progress_bar = ttk.Progressbar(self, variable=self.progress_var, orient="horizontal", length=300, mode="determinate")
