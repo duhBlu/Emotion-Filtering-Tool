@@ -7,7 +7,7 @@ class GalleryView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.initialized = True
-        self.candidate_images = []
+        self.candidate_images = {}
         self.image_tag_mappings = {}
         self.image_positions = []
         self.row_heights = []
@@ -88,9 +88,10 @@ class GalleryView(ttk.Frame):
     Send Data to Manual Review
     '''     
     def send_to_review(self):
-        self.master.views['Manual Image Review'].show_images(self.candidate_images)
+        self.master.views['Manual Image Review'].load_candidate_images(self.candidate_images)
         self.master.change_view('Manual Image Review')
         self.clear_gallery()
+
     
     '''
     Cancel the processing
@@ -120,8 +121,8 @@ class GalleryView(ttk.Frame):
             target_width = self.master.views["Data Upload & Image Selection"].width_entry.get()
             resized_image = self.resize_image_to_display_width(image, 200)  
             tags = features if features else self.image_tag_mappings.get(image_path, {}).get('tags', {})
-            formatted_tags = ([f"{v} " for _, v in tags.items()])
-            self.add_image_to_gallery(resized_image, formatted_tags)
+            formatted_tags = ({f"{v}" for _, v in tags.items()})
+            self.add_image_to_gallery(resized_image, tags, image_path)
             print(f"Loaded {image_path} with tags: {formatted_tags}")
         except Exception as e:
             print(f"Error loading {image_path}. Reason: {e}")
@@ -135,11 +136,13 @@ class GalleryView(ttk.Frame):
         image = image.resize((new_width, new_height))
         return image
 
-    def add_image_to_gallery(self, image, tags):
+    def add_image_to_gallery(self, image, tags, image_path):
         try:
             photo = ImageTk.PhotoImage(image)
-            self.candidate_images.append(photo)  # Store a reference to the PhotoImage object
-            
+            self.candidate_images[image_path] = {
+                'photo': photo,
+                'tags': tags
+            }
             # Calculate image's contribution to row width (including padding)
             image_width_with_padding = photo.width() + 10 
             
@@ -157,7 +160,7 @@ class GalleryView(ttk.Frame):
             
             # Add tags as a label to the image
             if tags:
-                tag_text = ", ".join(tags)
+                tag_text = ", ".join(tags.values())
                 tag_label = ttk.Label(self.frame_images, text=tag_text, background='white', anchor='e')
                 tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
 
@@ -181,7 +184,7 @@ class GalleryView(ttk.Frame):
             widget.destroy()
 
         # Reset attributes to their initial states
-        self.candidate_images = []
+        self.candidate_images = {}
         self.image_tag_mappings = {}
         self.image_positions = []
         self.row_heights = []

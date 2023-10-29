@@ -1,6 +1,7 @@
 import tkinter as tk
 import shutil
 import os
+from turtle import backward
 from ttkthemes import ThemedTk
 from views.data_upload_view import DataUploadView
 from views.gallery_view import GalleryView
@@ -53,7 +54,7 @@ class MainWindow(tk.Frame):
                 takefocus=0  
             )
             if(btn_text == 'Data Upload & Image Selection'):
-                btn.config(bg="#e5e5e5", fg="#0c0c0c")
+                btn.config(bg="#e5e5e5", fg="#363636")
             btn.grid(row=idx, column=0, sticky='nsew')
             self.buttons[btn_text] = btn  # Store the button reference
             
@@ -75,9 +76,9 @@ class MainWindow(tk.Frame):
                     view.lift()
             for name, btn in self.buttons.items():
                 if name == view_name:
-                    btn.config(bg="#e5e5e5", fg="#0c0c0c") 
+                    btn.config(bg="#e5e5e5", fg="#363636") 
                 else:
-                    btn.config(bg="#bfbfbf", fg="#0c0c0c")
+                    btn.config(bg="#bfbfbf", fg="#262626")
        
     # cleanup system made folders
     def destroy(self):
@@ -85,20 +86,16 @@ class MainWindow(tk.Frame):
         data_upload_view = self.views.get('Data Upload & Image Selection')
     
         if data_upload_view:
-            # Delete extracted folders
-            for root_folder in data_upload_view.dataset_image_counts.keys():
-                if os.path.exists(root_folder):
-                    shutil.rmtree(root_folder)
-                    print(f"Deleted root folder: {root_folder}")
-
-            # Delete candidate folders
-            base_dir = os.path.dirname(list(data_upload_view.dataset_image_counts.keys())[0]) if data_upload_view.dataset_image_counts else ""
-            candidate_folder = os.path.join(base_dir, "Candidates").replace("\\", "/")
-        
-            if os.path.exists(candidate_folder):
-                shutil.rmtree(candidate_folder)
-                print(f"Deleted candidate folder: {candidate_folder}")  
-        root.quit()  
+            # Delete the entire extracted_dir
+            if os.path.exists(data_upload_view.extract_dir):
+                print(f"Deleting {data_upload_view.extract_dir}")
+                for root, dirs, _ in os.walk(data_upload_view.extract_dir, topdown=False):
+                    for dir in dirs:
+                        print(f"removing: {dir}")
+                    print(f"removing: {root}")
+                shutil.rmtree(data_upload_view.extract_dir)
+                
+        root.quit()
     
 if __name__ == "__main__":
     root = ThemedTk(theme="breeze")
@@ -112,7 +109,6 @@ if __name__ == "__main__":
     # create the root window
     main_win = MainWindow(master=root)
     main_win.grid(row=0, column=0, sticky='nsew')
-    
     root.protocol("WM_DELETE_WINDOW", main_win.destroy)
 
     root.mainloop()

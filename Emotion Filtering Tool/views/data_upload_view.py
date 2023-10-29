@@ -1,3 +1,5 @@
+import tensorflow as tf
+from tensorflow.python.client import device_lib
 from tkinter import ttk, filedialog
 import tkinter as tk
 import threading
@@ -7,7 +9,8 @@ import os
 import shutil
 import tkinter.messagebox as messagebox
 from deepface import DeepFace
-
+import queue
+import time
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -24,6 +27,8 @@ class DataUploadView(ttk.Frame):
         self.dataset_image_counts = {}
         self.image_tag_mappings = {}
         self.cancellation_requested = False
+        self.ui_update_queue = queue.Queue()   
+        self.gpu_lock = threading.Lock()
         self.label_mapping = {
             'man': 'male',
             'boy': 'male',
@@ -45,7 +50,8 @@ class DataUploadView(ttk.Frame):
         }
         self.colors = ['#{:02x}{:02x}{:02x}'.format(i, i, i) for i in range(0, 198, 207 // (15 - 1))] 
         self.create_widgets()
-    
+        self.listen_for_ui_updates()  
+
     '''
     Initialize UI
     '''
@@ -116,17 +122,17 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Emotions")
 
         emotion_options = ["Angry", "Crying", "Sad", "Surprised", "Confused", "Shy", "Neutral"] 
-        self.emotion_vars = {option: tk.BooleanVar() for option in emotion_options}  # Each emotion gets its own BooleanVar
+        self.emotion_vars = {option: tk.BooleanVar(value=True) for option in emotion_options}  # Each emotion gets its own BooleanVar
         
         for i, option in enumerate(emotion_options):
             ttk.Checkbutton(frame, text=option, variable=self.emotion_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
 
     def create_age_tab(self):
         frame = ttk.Frame(self.notebook)
-        self.notebook.add(frame, text="Age(wip)")
+        self.notebook.add(frame, text="Age Range")
 
-        age_options = ["Kids", "Adult", "Elder"]
-        self.age_vars = {option: tk.BooleanVar() for option in age_options}
+        age_options = ["Infants (1 month to 1 year)", "Children (1 year through 12 years)", "Teenagers (13 years through 17 years.)", "Adults (18 years or older)", "Older adults (65 and older)"]
+        self.age_vars = {option: tk.BooleanVar(value=True) for option in age_options}
         for i, option in enumerate(age_options):
             ttk.Checkbutton(frame, text=option, variable=self.age_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
             
@@ -144,13 +150,13 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Gender")
 
         gender_options = ["male", "female"]  
-        self.gender_vars = {option: tk.BooleanVar() for option in gender_options}
+        self.gender_vars = {option: tk.BooleanVar(value=True) for option in gender_options}
         for i, option in enumerate(gender_options):
             ttk.Checkbutton(frame, text=option, variable=self.gender_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
     
     def append_status(self, status_text):
         """Appends the provided text to the top of the status text widget with fading effect."""
-        self.status_text.config(state=tk.NORMAL)  # Temporarily enable editing
+        self.status_text.config(state=tk.NORMAL, spacing1=5)  # Temporarily enable editing
 
         # Insert new message with the darkest color at the beginning
         self.status_text.insert("1.0", status_text + "\n")
@@ -171,8 +177,7 @@ class DataUploadView(ttk.Frame):
     Upload Dataset
     '''
     def upload_dataset(self):
-        self.append_status("waiting selection...")
-        file_path = filedialog.askopenfilename(filetypes=[
+        file_paths = filedialog.askopenfilenames(filetypes=[
             ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2'),
             ('ZIP files', '*.zip'),
             ('TAR files', '*.tar *.tar.gz *.tar.bz2'),
@@ -183,47 +188,52 @@ class DataUploadView(ttk.Frame):
             # ('Numpy files', '*.npy *.npz'),
             # ('HDF5 files', '*.hdf5'),
         ])
-        if file_path:
+        if file_paths:
             self.process_button['text'] = "Loading..."
             self.process_button['state'] = tk.DISABLED
 
-            basename = os.path.basename(file_path)
-            self.append_status(f"beginning extraction of {basename}")
-            if basename.endswith('.tar.gz'):
-                extension = '.tar.gz'
-            elif basename.endswith('.tar.bz2'):
-                extension = '.tar.bz2'
-            else:
-                extension = os.path.splitext(file_path)[-1].lower()
+            for file_path in file_paths:
+                basename = os.path.basename(file_path)
+                
+                if basename.endswith('.tar.gz'):
+                    ext = '.tar.gz'
+                elif basename.endswith('.tar.bz2'):
+                    ext = '.tar.bz2'
+                else:
+                    ext = os.path.splitext(file_path)[-1].lower()
  
-            if extension in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
-                self.extract_archive(file_path, extension)
-   
+                if ext in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
+                    self.append_status(f"{basename.replace(ext, '')}: Starting Extraction")
+                    self.extract_archive(file_path, ext)
     
     '''
     EXTRACT ARCHIVES
         Accepts .zip, .tar, .tar.gz, .tar.bz2
     '''
     def extract_archive(self, archive_path, ext):
+        self.extract_dir = os.path.join(os.path.dirname(archive_path), "extracted_dir")
+        if not os.path.exists(self.extract_dir): os.mkdir(self.extract_dir)
+        self.candidates_dir = os.path.join(self.extract_dir, "Candidates")
+        if not os.path.exists(self.candidates_dir): os.mkdir(self.candidates_dir)
+        
         #ext = os.path.splitext(archive_path)[1]
         if ext == '.gz' or ext == '.bz2':  # Handle tar.gz and tar.bz2
             ext = '.'.join(os.path.basename(archive_path).split('.')[-2:])
-        self.append_status(f"extracting to {archive_path}")
+        self.start_time = time.time()
         threading.Thread(target=self._threaded_extraction, args=(archive_path, ext), daemon=True).start()
 
     def _threaded_extraction(self, archive_path, ext):
         base_name = os.path.basename(archive_path).replace(ext, '')
-        extract_dir = os.path.join(os.path.dirname(archive_path), base_name)
+        extract_dir = os.path.join(self.extract_dir, base_name).replace('\\', '/')
 
         if os.path.exists(extract_dir):
             shutil.rmtree(extract_dir)
+            print(f"Deleted existing extract_dir: {extract_dir}")
         os.mkdir(extract_dir)
         if ext == '.zip':
-            self.append_status(f"extracting zip")
             with zipfile.ZipFile(archive_path, 'r') as archive_ref:
                 archive_ref.extractall(extract_dir)
         elif ext in ['.tar', '.tar.gz', '.tar.bz2']:
-            self.append_status(f"extracting {ext}")
             with tarfile.open(archive_path) as archive_ref:
                 archive_ref.extractall(extract_dir)
 
@@ -232,7 +242,6 @@ class DataUploadView(ttk.Frame):
         # adding comments to explan the following code'
         # os.walk() returns a generator that yields a tuple of (dirpath, dirnames, filenames)
 
-        self.append_status(f"searching directories for images...")
         for dirpath, _, filenames in os.walk(extract_dir):
             for f in filenames:
                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')):
@@ -248,33 +257,48 @@ class DataUploadView(ttk.Frame):
 
                     shutil.move(os.path.join(dirpath, f), destination)
                     image_count += 1
-                    
-        self.append_status(f"extracted {image_count} images")
+             
         self.dataset_image_counts[extract_dir] = image_count
         
-        # Remove any leftover empty directories
-        self.append_status(f"finishing up")
         for dirpath, _, _ in os.walk(extract_dir, topdown=False):
             if not os.listdir(dirpath):  # Empty directory
                 os.rmdir(dirpath)
             
-        entry_text = f"{base_name} ({image_count})"
+        entry_text = f"{base_name} \t({image_count})"
         # Add the root extraction directory name to the listbox
         self.dataset_filenames_listbox.insert(tk.END, entry_text)
-
+        
+        elapsed_time = time.time() - self.start_time
+        minutes, seconds = divmod(elapsed_time, 60)
+        if minutes <= 0:
+            self.append_status(f"{base_name}: Extracted {image_count} images in {int(seconds)} seconds")
+        else:
+            self.append_status(f"{base_name}: Extracted {image_count} images in {int(minutes)} minutes {int(seconds)} seconds")
+        
+        self.append_status(f"{base_name}: Extracted to {extract_dir}")
         self.master.after(0, self._finish_extraction) 
 
     def _finish_extraction(self):
         self.process_button['text'] = "Process"
         self.process_button['state'] = tk.NORMAL    
-        self.append_status(f"upload complete")
         
     '''
     PROCESSING IMAGES
     '''
+    def get_available_gpus(self):
+        # using tensorflow==2.10.0, CuDNN 8.1.0.77, CUDA 11.2.0
+        local_device_protos = device_lib.list_local_devices()
+        cpus = tf.config.list_physical_devices('CPU')
+        gpus = tf.config.list_physical_devices('GPU')
+        return cpus, gpus
+        
     def start_processing_images(self):
+        self.master.change_view('Gallery')
+
+        self.cancellation_requested = False
+        self.processed_images_count = 0
         selected_indices = self.dataset_filenames_listbox.curselection()
-    
+        
         # Check for selected options
         selected_emotions = [k for k, v in self.emotion_vars.items() if v.get()]
         selected_ages = [k for k, v in self.age_vars.items() if v.get()]
@@ -292,102 +316,65 @@ class DataUploadView(ttk.Frame):
         elif not (selected_emotions or selected_ages or selected_races or selected_genders):
             messagebox.showinfo("No Filtering Options Selected", "Please select at least one filtering option.")
             return
-
-        with self.process_lock:
-            threading.Thread(target=self.process_images, args=(actions, selected_indices,)).start()
-        self.master.change_view('Gallery')
-
-    # Neural netork source https://github.com/serengil/deepface
-    def neural_network_filter(self, image_paths, actions):
-        accepted_images = {}
-        try:
-            
-            for image_path in image_paths:
-                # Analyzing age, gender, race, and emotion for the current image
-                analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
-                print(analysis)
-                self.processed_images_count += 1
-                self.master.views['Gallery'].update_progress(self.processed_images_count)
-                
-                face_data = analysis[0]
-                features = {}
-                if actions.get('emotion'):
-                    dominant_emotion = face_data['dominant_emotion'].lower()
-
-                    mapped_emotion = self.emotion_mapping.get(dominant_emotion, dominant_emotion)
-
-                    emotion_scores = face_data['emotion']
-                    if emotion_scores.get('sad', 0) > 20:  # 20% is our threshold, you can adjust as needed
-                        mapped_emotion = 'crying'  # If sadness score is significant, consider it as crying
-
-                    if emotion_scores.get('neutral', 0) > 40 and mapped_emotion == 'confused':  # If neutral score is very high and emotion was confused
-                        mapped_emotion = 'shy'  # Consider the emotion as shy
-
-                    features['emotion'] = mapped_emotion
-                if actions.get('gender'):
-                    features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
-                if actions.get('race'):
-                    features['race'] = face_data['dominant_race'].lower()
-                if actions.get('age'):
-                    features['age'] = str(face_data['age'])
-
-
-                # Check if the user's desired emotion matches the detected dominant emotion
-                # currently only gender is handled because it was the easiest to implement.
-                # need to create mappings from the DeepFace's analysis to the users specified emotion
-                # i.e. deepface labeled an image neutral but might be sad or curious. 
-                # need a sophisticated way to match the features from the analysis to the selected feature
-
-                if (
-                    (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
-                    (not actions.get('age') or features['age'] in [age.lower() for age in actions.get('age')]) and
-                    (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
-                    (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
-                ):
-                    accepted_images[image_path] = features
-
-            return accepted_images
-
-        except Exception as e:
-            print(f"Error analyzing images. Error: {e}")
-            return {}
-
-    def process_images(self, actions, selected_indices):
-        BATCH_SIZE = 5
-    
+        
+        cpus, gpus = self.get_available_gpus()
+        if gpus:
+            try:
+                tf.config.experimental.set_memory_growth(gpus[0], True)
+            except RuntimeError as e:
+                print(e)
+            NUM_THREADS = os.cpu_count()
+            BATCH_SIZE = 5  
+            DEVICE = '/device:CPU:0'
+        if cpus and not gpus:
+            NUM_THREADS = os.cpu_count() or 4
+            BATCH_SIZE = 5
+            DEVICE = '/device:CPU:0'
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
+        # Partition the image file indexes into the number of threads specified
+        image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
+        threads = []
+        for start_idx, end_idx in image_ranges:
+            thread = threading.Thread(target=self.process_images, args=(actions, selected_folders, start_idx, end_idx, BATCH_SIZE, DEVICE))
+            threads.append(thread)
+            thread.start()
     
+        def wait_for_threads():
+            for thread in threads:
+                thread.join()
+                
+        wait_thread = threading.Thread(target=wait_for_threads)    
+        wait_thread.start()
+        
+    def _divide_images_by_count(self, selected_folders, num_threads):
+        """ 
+        Partition the image index ranges into the number of threads specified
+        """
         total_images = sum(self.dataset_image_counts[folder] for folder in selected_folders)
-        self.master.views['Gallery'].set_progress_maximum(total_images)
-        self.processed_images_count = 0
+        self.master.views["Gallery"].set_progress_maximum(total_images)
+
+        # Adjust the number of threads if the dataset is smaller
+        num_threads = min(total_images, num_threads)
     
-        base_dir = os.path.dirname(selected_folders[0]) if selected_folders else ""
-        candidate_folder = os.path.join(base_dir, "Candidates").replace("\\", "/")
+        avg_images_per_thread = total_images // num_threads
+        remaining_images = total_images % num_threads  # This will handle the distribution of the remaining images
 
-        if os.path.exists(candidate_folder):
-            shutil.rmtree(candidate_folder)
-            print(f"Deleted existing candidates folder: {candidate_folder}")
+        current_idx = 0
+        ranges = []
+        for i in range(num_threads):
+            start_idx = current_idx
+            end_idx = start_idx + avg_images_per_thread
 
-        os.mkdir(candidate_folder)
+            if remaining_images > 0:
+                end_idx += 1  # Distribute the remaining images
+                remaining_images -= 1
 
-        for folder_path in selected_folders:
-            if folder_path == candidate_folder:
-                continue
+            ranges.append((start_idx, end_idx))
+            current_idx = end_idx
 
-            for batch in self._batched_image_paths(folder_path, BATCH_SIZE):
-                
-                accepted_images_dict = self.neural_network_filter(batch, actions)
-                
-                for img_path, features in accepted_images_dict.items():
-                    if self.cancellation_requested:
-                        self.cancellation_requested = False
-                        return
-                    candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
-                    shutil.copy(img_path, candidate_image_path)
-                    self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': features}
-                    self.master.views['Gallery'].receive_data(candidate_folder, {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)})
-                    self.master.views['Gallery'].update_idletasks()
+        return ranges
 
+    
     def _batched_image_paths(self, folder_path, BATCH_SIZE):
         """
         Lazy Loading
@@ -405,6 +392,139 @@ class DataUploadView(ttk.Frame):
                 batch = []
         if batch:
             yield batch
+    
+    
+    def process_images(self, actions, selected_folders, start_idx, end_idx, BATCH_SIZE, DEVICE):
+        processed_so_far = 0
+        base_dir = os.path.dirname(selected_folders[0]) if selected_folders else ""
+        candidate_folder = self.candidates_dir
+    
+        for folder_path in selected_folders:
+            for img_path in os.listdir(folder_path):
+                if start_idx <= processed_so_far < end_idx:
+                    # analyze the images
+                    accepted_images_dict = self.neural_network_filter([os.path.join(folder_path, img_path)], actions, DEVICE)
+                    for img_path, features in accepted_images_dict.items():
+                        if self.cancellation_requested:
+                            return
+                        candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
+                        shutil.copy(img_path, candidate_image_path)
+                        self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': features}
+                        update_data = {
+                            'type': 'update_gallery',
+                            'folder': candidate_folder,
+                            'image_data': {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)}
+                        }
+                        self.ui_update_queue.put(update_data)
+                processed_so_far += 1
+                if processed_so_far >= end_idx:
+                    break
+    '''
+    Listeners for UI updates
+    '''           
+    def listen_for_ui_updates(self):
+        try:
+            # Non-blocking get from the queue
+            update_request = self.ui_update_queue.get_nowait()
+
+            # Dispatch the update request to the processing function
+            self.process_ui_update(update_request)
+            
+        except queue.Empty:
+            # If the queue is empty, just pass
+            pass
+        
+        # Schedule the next check in 100ms
+        self.master.after(100, self.listen_for_ui_updates)
+
+    def process_ui_update(self, update_request):
+        if update_request['type'] == 'update_progress':
+            self.master.views['Gallery'].update_progress(update_request['count'])
+        elif update_request['type'] == 'update_gallery':
+            self.master.views['Gallery'].receive_data(update_request['folder'], update_request['image_data'])
+
+        self.master.views['Gallery'].update_idletasks() 
+
+    def get_custom_emotion(self, deepface_output):
+        custom_emotion_scores = {
+            "Angry": deepface_output['angry'],
+            "Crying": 0.8 * deepface_output['sad'] + 0.2 * deepface_output['neutral'],
+            "Sad": deepface_output['sad'],
+            "Surprised": deepface_output['surprise'],
+            "Confused": 0.5 * deepface_output['neutral'] + 0.3 * deepface_output['fear'] + 0.2 * deepface_output['angry'],
+            "Shy": 0.9 * deepface_output['neutral'] + 0.1 * deepface_output['fear'],
+            "Neutral": deepface_output['neutral']
+        }
+        dominant_custom_emotion = max(custom_emotion_scores, key=custom_emotion_scores.get)
+        return dominant_custom_emotion
+    
+    def age_within_selected_range(self, detected_age, selected_age_ranges):
+        if "Infants (1 month to 1 year)" in selected_age_ranges and 1 <= detected_age < 12:
+            return True
+        elif "Children (1 year through 12 years)" in selected_age_ranges and 12 <= detected_age < 13:
+            return True
+        elif "Teenagers (13 years through 17 years.)" in selected_age_ranges and 13 <= detected_age <= 17:
+            return True
+        elif "Adults (18 years or older)" in selected_age_ranges and 18 <= detected_age < 65:
+            return True
+        elif "Older adults (65 and older)" in selected_age_ranges and detected_age >= 65:
+            return True
+        return False
+
+    # Neural netork source https://github.com/serengil/deepface
+    def neural_network_filter(self, image_paths, actions, DEVICE):
+        accepted_images = {}
+        try:
+            for image_path in image_paths:
+                with self.gpu_lock:
+                    with tf.device(DEVICE):
+                        #Deepface
+                        analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
+                print(analysis)
+                self.processed_images_count += 1
+                update_request = {
+                    'type': 'update_progress',
+                    'count': self.processed_images_count
+                }
+                self.ui_update_queue.put(update_request)
+               
+
+                # analyze the face data frum deepface
+                face_data = analysis[0]
+                features = {}
+                if actions.get('emotion'):
+                    emotion_scores = face_data['emotion']
+                    mapped_emotion = self.get_custom_emotion(emotion_scores)
+                    features['emotion'] = mapped_emotion.lower()
+
+                if actions.get('gender'):
+                    features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
+
+                if actions.get('race'):
+                    features['race'] = face_data['dominant_race'].lower()
+
+                if actions.get('age'):
+                    detected_age = face_data['age']
+                    age_is_acceptable = self.age_within_selected_range(detected_age, actions.get('age'))
+                    if age_is_acceptable:
+                        features['age'] = str(detected_age)
+
+                if (
+                    (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
+                    (not actions.get('age') or 'age' in features) and
+                    (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
+                    (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
+                ):
+                    accepted_images[image_path] = features
+
+            return accepted_images
+
+        except Exception as e:
+            print(f"Error analyzing images. Error: {e}")
+            return {}
+
+
+
 
                     
 

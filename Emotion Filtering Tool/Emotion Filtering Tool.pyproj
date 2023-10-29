@@ -11,8 +11,8 @@
     <OutputPath>.</OutputPath>
     <Name>Emotion Filtering Tool</Name>
     <RootNamespace>Emotion Filtering Tool</RootNamespace>
-    <InterpreterId>MSBuild|eft-main-env|$(MSBuildProjectFullPath)</InterpreterId>
-    <IsWindowsApplication>False</IsWindowsApplication>
+    <InterpreterId>Global|VisualStudio|eft-env</InterpreterId>
+    <IsWindowsApplication>True</IsWindowsApplication>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
     <DebugSymbols>true</DebugSymbols>
@@ -22,17 +22,6 @@
     <DebugSymbols>true</DebugSymbols>
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
-  <ItemGroup>
-    <Interpreter Include="eft-main-env\">
-      <Id>eft-main-env</Id>
-      <Version>3.10</Version>
-      <Description>eft-main-env (Python 3.10)</Description>
-      <InterpreterPath>Scripts\python.exe</InterpreterPath>
-      <WindowsInterpreterPath>Scripts\pythonw.exe</WindowsInterpreterPath>
-      <PathEnvironmentVariable>PYTHONPATH</PathEnvironmentVariable>
-      <Architecture>X64</Architecture>
-    </Interpreter>
-  </ItemGroup>
   <ItemGroup>
     <Folder Include="views\" />
   </ItemGroup>
@@ -46,7 +35,7 @@
   </ItemGroup>
   <ItemGroup>
     <InterpreterReference Include="Global|PythonCore|3.10" />
-    <InterpreterReference Include="Global|VisualStudio|eft-main-env" />
+    <InterpreterReference Include="Global|VisualStudio|eft-env" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

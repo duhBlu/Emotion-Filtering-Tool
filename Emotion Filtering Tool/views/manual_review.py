@@ -1,13 +1,16 @@
 import tkinter as tk
 from tkinter import ttk
 from collections import defaultdict
+from PIL import Image, ImageTk
+from io import BytesIO
 
 class ManualReviewView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
-        self.photo_images = []
-        self.accepted_images = []  # list to store accepted images
+        self.photo_images = {}
+        self.accepted_images = {}
         self.accepted_count = 0  # count of accepted images
+        self.total_accepted_count = 0  # count of accepted images this session
         self.selected_images = defaultdict(bool)
         self.image_frames = {}
         self.current_row = 0 
@@ -19,17 +22,7 @@ class ManualReviewView(ttk.Frame):
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=0) 
         self.create_widgets()
-        self.style = ttk.Style(master)
-        self.style.layout('noArrow.TCombobox', 
-                          [('Combobox.background', {'children':
-                                                    [('Combobox.padding', {'expand': '1',
-                                                                           'children':
-                                                                           [('Combobox.label', {'side': 'left', 'sticky': ''})]
-                                                                          }
-                                                     )]
-                                                   }
-                           )]
-                         )
+
         
     '''
     Initialize UI
@@ -48,12 +41,15 @@ class ManualReviewView(ttk.Frame):
 
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
-
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.accept_button = ttk.Button(self, text="Accept Selected", command=self.accept_images)
         self.accept_button.grid(row=1, column=0, padx=10, pady=10, sticky="w")
         
         self.accepted_count_label = ttk.Label(self, text=f"Accepted Images: {self.accepted_count}")
-        self.accepted_count_label.grid(row=1, column=0, padx=10, pady=10, sticky="")
+        self.accepted_count_label.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="n")
+        
+        self.total_accepted_count_label = ttk.Label(self, text=f"Accepted Images This Session: {self.total_accepted_count}")
+        self.total_accepted_count_label.grid(row=1, column=0, padx=10, pady=(10,0), sticky="s")
 
         self.reject_button = ttk.Button(self, text="Reject Selected", command=self.reject_images)
         self.reject_button.grid(row=1, column=0, padx=10, pady=10, sticky="e")
@@ -76,9 +72,11 @@ class ManualReviewView(ttk.Frame):
     def send_to_augment(self):
         self.master.views['Image Augmentation'].show_images(self.accepted_images)
         self.master.change_view('Image Augmentation')
-        self.accepted_images = []
+        self.accepted_images = {}
         self.accepted_count = 0
+        self.total_accepted_count = 0
         self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
+        self.total_accepted_count_label.config(text=f"Accepted Images this Session: {self.total_accepted_count}")
     
     '''
     Clear Images
@@ -89,8 +87,8 @@ class ManualReviewView(ttk.Frame):
             widget.destroy()
 
         # Reset attributes
-        self.photo_images = []
-        self.accepted_images = []
+        self.photo_images = {}
+        self.accepted_images = {}
         self.selected_images = defaultdict(bool)
         self.image_frames = {}
         self.current_row = 0 
@@ -100,20 +98,31 @@ class ManualReviewView(ttk.Frame):
     '''
     Load and Display Images
     '''
-    def show_images(self, new_photo_images):
-        # Append new images to existing list
-        start_idx = len(self.photo_images)
-        self.photo_images.extend(new_photo_images)
+    def load_candidate_images(self, candidate_images):
+        self.photo_images.update(candidate_images)
+        self.show_images(self.photo_images, False)
     
-        # Show new images
-        for idx, photo in enumerate(new_photo_images, start=start_idx):
-            self.add_image_to_review(idx, photo)
+    def clear_image_grid(self):
+        for widget in self.frame_images.winfo_children():
+            widget.destroy()
+
+    def show_images(self, images, clear): 
+        if clear:
+            self.current_col = 0
+            self.current_row = 0
+            self.current_row_width = 0
+            self.clear_image_grid()
+        for idx, (image_path, image_data) in enumerate(images.items()):
+            photo = image_data['photo']
+            tags = image_data['tags']
+            self.add_image_to_review(idx, image_path, photo, tags)
 
         # Update canvas scroll region
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
         
-    def add_image_to_review(self, idx, photo):
-        image_width_with_padding = photo.width() + 10 + 20 
+    def add_image_to_review(self, idx, image_path, photo, tags):
+        image_width_with_padding = photo.width() + 10
 
         # Check if adding this image would exceed the max frame width
         if self.current_row_width + image_width_with_padding > self.canvas.winfo_width():
@@ -121,76 +130,29 @@ class ManualReviewView(ttk.Frame):
             self.current_row_width = 0
             self.current_col = 0
             self.current_row += 1
-
-        frame = ttk.Frame(self.frame_images, relief="flat")
-        frame.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
-        self.image_frames[idx] = frame
-
         
         check_var = tk.IntVar()
-        checkbutton = ttk.Checkbutton(frame, variable=check_var)
-        checkbutton.grid(row=0, column=0, sticky="nw")
-        checkbutton['command'] = lambda idx=idx, var=check_var: self.toggle_selection(idx, var)
-        
-        img_label = ttk.Label(frame, image=photo)
-        img_label.grid(row=1, column=0, columnspan=5, sticky="n")  # span enough columns to cover all comboboxes
+        # Image Label
+        img_label = ttk.Label(self.frame_images, image=photo)
+        img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
         img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
         img_label.bind("<MouseWheel>", self._on_mousewheel)
-        self.selected_images[idx] = False
-        
-        image_path = list(self.master.views["Gallery"].image_tag_mappings.keys())[0]
-        tag_data = self.master.views["Gallery"].image_tag_mappings.get(image_path, {}).get('tags', {})
 
-        
-        selected_emotions = [k for k, v in self.master.views['Data Upload & Image Selection'].emotion_vars.items() if v.get()]
-        selected_ages = [k for k, v in self.master.views['Data Upload & Image Selection'].age_vars.items() if v.get()]
-        selected_races = [k for k, v in self.master.views['Data Upload & Image Selection'].race_vars.items() if v.get()]
-        selected_genders = [k for k, v in self.master.views['Data Upload & Image Selection'].gender_vars.items() if v.get()]
+        # Checkbutton (added to the top-left of the image)
+        checkbutton = ttk.Checkbutton(self.frame_images, variable=check_var)
+        checkbutton.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
+        checkbutton['command'] = lambda idx=idx, var=check_var: self.toggle_selection(idx, var)
 
-        
-        col_offset = 2
-
-        def create_and_bind_combobox(feature, selections):
-            nonlocal col_offset
-            if feature in tag_data and selections:
-                current_value = tag_data.get(feature)
-                combobox = self.create_combobox(frame, selections, current_value, col_offset)
-                combobox.bind("<<ComboboxSelected>>", lambda event, f=feature: self.update_tag(idx, combobox, f))
-                col_offset += 1
-
-        # Create comboboxes with width specific to their selections
-        create_and_bind_combobox('emotion', selected_emotions)
-        create_and_bind_combobox('age', selected_ages)
-        create_and_bind_combobox('race', selected_races)
-        create_and_bind_combobox('gender', selected_genders)
+        # Add tags as a label to the image
+        tag_string = ', '.join([f"{v}" for _, v in tags.items()])
+        tag_label = ttk.Label(self.frame_images, text=tag_string)
+        tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
 
         # Update current row width and column
         self.current_row_width += image_width_with_padding
         self.current_col += 1
-    
+
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-   
-    '''
-    Creating/modifying Tag Comboboxes
-    '''
-    def create_combobox(self, parent_frame, options, default_value, col_offset):
-        """Helper function to create a Combobox."""
-        max_option_length = max([len(option) for option in options])
-
-        combobox = ttk.Combobox(parent_frame, values=options, width=max_option_length, state="readonly", style="noArrow.TCombobox")
-        combobox.set(default_value)
-        combobox.grid(row=0, column=col_offset, sticky="ne")
-
-        return combobox
-
-    def update_tag(self, idx, combobox, feature):
-        """Update the image tag mappings."""
-        if idx in self.master.views["Gallery"].image_tag_mappings:
-            self.master.views["Gallery"].image_tag_mappings[idx][feature] = combobox.get()
-        else:
-            self.master.views["Gallery"].image_tag_mappings[idx] = {feature: combobox.get()}
-        new_width = len(combobox.get())
-        combobox.config(width=new_width)
     
     '''
     Image Selection/Acceptance/Rejection logic
@@ -211,16 +173,25 @@ class ManualReviewView(ttk.Frame):
         self.process_selected_images(accept=False)
 
     def process_selected_images(self, accept=True):
-        new_photo_images = []
-        for idx, selected in list(self.selected_images.items()):
-            if accept and selected:
-                self.accepted_images.append(self.photo_images[idx])
-                self.accepted_count += 1
-            elif not selected:
-                new_photo_images.append(self.photo_images[idx])
+        new_photo_images = {}
+        for idx, image_data in enumerate(self.photo_images.items()):
+            image_path, tag_data = image_data
 
-        self.show_images(new_photo_images)  # Refresh the view with remaining images
+            selected = self.selected_images.get(idx)
+            
+            if accept and selected:
+                self.accepted_images[image_path] = tag_data
+                self.accepted_count += 1
+                self.total_accepted_count += 1  # Incrementing the total accepted count
+            elif not selected:
+                new_photo_images[image_path] = tag_data
+        
+        self.photo_images = new_photo_images  # Set photo_images to only the ones not selected
+        self.show_images(self.photo_images, True)  # Refresh the view with remaining images
         self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
+        self.total_accepted_count_label.config(text=f"Accepted Images this Session: {self.total_accepted_count}")
+        self.selected_images.clear()
+
 
     
         
