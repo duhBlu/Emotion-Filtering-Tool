@@ -60,8 +60,6 @@ class ManualReviewView(ttk.Frame):
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    def on_frame_configure(self, event=None):
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
     
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
@@ -147,6 +145,7 @@ class ManualReviewView(ttk.Frame):
         tag_string = ', '.join([f"{v}" for _, v in tags.items()])
         tag_label = ttk.Label(self.frame_images, text=tag_string)
         tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
+        tag_label.bind("<MouseWheel>", self._on_mousewheel)
 
         # Update current row width and column
         self.current_row_width += image_width_with_padding

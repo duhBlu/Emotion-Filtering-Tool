@@ -5,6 +5,7 @@
 
 
 eft-main-env/
+env/
 # User-specific files
 *.rsuser
 *.suo

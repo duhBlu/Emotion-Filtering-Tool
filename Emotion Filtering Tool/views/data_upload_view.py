@@ -1,5 +1,3 @@
-import tensorflow as tf
-from tensorflow.python.client import device_lib
 from tkinter import ttk, filedialog
 import tkinter as tk
 import threading
@@ -11,6 +9,7 @@ import tkinter.messagebox as messagebox
 from deepface import DeepFace
 import queue
 import time
+
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -26,9 +25,8 @@ class DataUploadView(ttk.Frame):
         self.process_lock = threading.Lock()
         self.dataset_image_counts = {}
         self.image_tag_mappings = {}
-        self.cancellation_requested = False
+        self.cancellation_event = threading.Event()
         self.ui_update_queue = queue.Queue()   
-        self.gpu_lock = threading.Lock()
         self.label_mapping = {
             'man': 'male',
             'boy': 'male',
@@ -101,7 +99,7 @@ class DataUploadView(ttk.Frame):
         self.status_text.config(yscrollcommand=self.status_scroll.set)
         self.status_scroll.grid(row=3, column=0, sticky='nse')
 
-        self.process_button = ttk.Button(self, text="Process", command=self.start_processing_images)
+        self.process_button = ttk.Button(self, text="Process", command=self.process_images)
         self.process_button.grid(row=3, column=1, padx=20, pady=20, sticky='se')
         self.process_button['text'] = "no dataset uploaded"
         self.process_button['state'] = tk.DISABLED
@@ -285,17 +283,9 @@ class DataUploadView(ttk.Frame):
     '''
     PROCESSING IMAGES
     '''
-    def get_available_gpus(self):
-        # using tensorflow==2.10.0, CuDNN 8.1.0.77, CUDA 11.2.0
-        local_device_protos = device_lib.list_local_devices()
-        cpus = tf.config.list_physical_devices('CPU')
-        gpus = tf.config.list_physical_devices('GPU')
-        return cpus, gpus
-        
-    def start_processing_images(self):
+    def process_images(self):
+        self.cancellation_event.clear()
         self.master.change_view('Gallery')
-
-        self.cancellation_requested = False
         self.processed_images_count = 0
         selected_indices = self.dataset_filenames_listbox.curselection()
         
@@ -317,25 +307,14 @@ class DataUploadView(ttk.Frame):
             messagebox.showinfo("No Filtering Options Selected", "Please select at least one filtering option.")
             return
         
-        cpus, gpus = self.get_available_gpus()
-        if gpus:
-            try:
-                tf.config.experimental.set_memory_growth(gpus[0], True)
-            except RuntimeError as e:
-                print(e)
-            NUM_THREADS = os.cpu_count()
-            BATCH_SIZE = 5  
-            DEVICE = '/device:CPU:0'
-        if cpus and not gpus:
-            NUM_THREADS = os.cpu_count() or 4
-            BATCH_SIZE = 5
-            DEVICE = '/device:CPU:0'
+        NUM_THREADS = os.cpu_count() - 2 or 4
+      
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
         # Partition the image file indexes into the number of threads specified
         image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
         threads = []
         for start_idx, end_idx in image_ranges:
-            thread = threading.Thread(target=self.process_images, args=(actions, selected_folders, start_idx, end_idx, BATCH_SIZE, DEVICE))
+            thread = threading.Thread(target=self._threaded_process_images, args=(actions, selected_folders, start_idx, end_idx))
             threads.append(thread)
             thread.start()
     
@@ -345,7 +324,10 @@ class DataUploadView(ttk.Frame):
                 
         wait_thread = threading.Thread(target=wait_for_threads)    
         wait_thread.start()
-        
+    
+    '''
+    Partition the image index ranges into the number of threads specified
+    '''   
     def _divide_images_by_count(self, selected_folders, num_threads):
         """ 
         Partition the image index ranges into the number of threads specified
@@ -373,7 +355,6 @@ class DataUploadView(ttk.Frame):
             current_idx = end_idx
 
         return ranges
-
     
     def _batched_image_paths(self, folder_path, BATCH_SIZE):
         """
@@ -383,59 +364,57 @@ class DataUploadView(ttk.Frame):
         img_paths = (os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path))
         batch = []
         for img_path in img_paths:
-            if self.cancellation_requested:
-                self.cancellation_requested = False
-                return
             batch.append(img_path)
             if len(batch) == BATCH_SIZE:
                 yield batch
                 batch = []
         if batch:
             yield batch
-    
-    
-    def process_images(self, actions, selected_folders, start_idx, end_idx, BATCH_SIZE, DEVICE):
+            
+    def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
+        
+        print("started processing")
         processed_so_far = 0
-        base_dir = os.path.dirname(selected_folders[0]) if selected_folders else ""
         candidate_folder = self.candidates_dir
-    
+
         for folder_path in selected_folders:
-            for img_path in os.listdir(folder_path):
-                if start_idx <= processed_so_far < end_idx:
-                    # analyze the images
-                    accepted_images_dict = self.neural_network_filter([os.path.join(folder_path, img_path)], actions, DEVICE)
-                    for img_path, features in accepted_images_dict.items():
-                        if self.cancellation_requested:
-                            return
-                        candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
-                        shutil.copy(img_path, candidate_image_path)
-                        self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': features}
-                        update_data = {
-                            'type': 'update_gallery',
-                            'folder': candidate_folder,
-                            'image_data': {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)}
-                        }
-                        self.ui_update_queue.put(update_data)
-                processed_so_far += 1
-                if processed_so_far >= end_idx:
-                    break
+            # Use the lazy loader here
+            for batched_img_paths in self._batched_image_paths(folder_path, 10):
+                for img_path in batched_img_paths:
+                    if self.cancellation_event.is_set():
+                        return
+                    if start_idx <= processed_so_far < end_idx:
+                        accepted_images_dict = self.neural_network_filter([img_path], actions)
+                        for img_path, features in accepted_images_dict.items():
+                            candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
+                            shutil.copy(img_path, candidate_image_path)
+                            self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': features}
+                            update_data = {
+                                'type': 'update_gallery',
+                                'folder': candidate_folder,
+                                'image_data': {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)}
+                            }
+                            self.ui_update_queue.put(update_data)
+                    processed_so_far += 1
+                    if processed_so_far >= end_idx:
+                        break
+
     '''
     Listeners for UI updates
-    '''           
-    def listen_for_ui_updates(self):
-        try:
-            # Non-blocking get from the queue
-            update_request = self.ui_update_queue.get_nowait()
-
-            # Dispatch the update request to the processing function
-            self.process_ui_update(update_request)
-            
-        except queue.Empty:
-            # If the queue is empty, just pass
-            pass
+    '''  
+    def stop_processing(self):
+        self.cancellation_event.set() 
         
+    def listen_for_ui_updates(self):
+        if self.cancellation_event.is_set():
+            return
+        try:
+            update_request = self.ui_update_queue.get_nowait()
+            self.process_ui_update(update_request)
+        except queue.Empty:
+            pass
         # Schedule the next check in 100ms
-        self.master.after(100, self.listen_for_ui_updates)
+        self.master.after(50, self.listen_for_ui_updates)
 
     def process_ui_update(self, update_request):
         if update_request['type'] == 'update_progress':
@@ -472,14 +451,12 @@ class DataUploadView(ttk.Frame):
         return False
 
     # Neural netork source https://github.com/serengil/deepface
-    def neural_network_filter(self, image_paths, actions, DEVICE):
+    def neural_network_filter(self, image_paths, actions):
+        print("filtering images")
         accepted_images = {}
         try:
             for image_path in image_paths:
-                with self.gpu_lock:
-                    with tf.device(DEVICE):
-                        #Deepface
-                        analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
+                analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
                 print(analysis)
                 self.processed_images_count += 1
                 update_request = {
@@ -487,7 +464,6 @@ class DataUploadView(ttk.Frame):
                     'count': self.processed_images_count
                 }
                 self.ui_update_queue.put(update_request)
-               
 
                 # analyze the face data frum deepface
                 face_data = analysis[0]

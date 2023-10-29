@@ -1,3 +1,4 @@
+import os
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -97,7 +98,7 @@ class GalleryView(ttk.Frame):
     Cancel the processing
     '''   
     def stop_processing(self):
-        self.master.views['Data Upload & Image Selection'].cancellation_requested = True
+        self.master.views['Data Upload & Image Selection'].stop_processing()
         self.set_progress_maximum(0)
         self.update_progress(0)
 
@@ -118,8 +119,9 @@ class GalleryView(ttk.Frame):
             with open(image_path, 'rb') as f:
                 image_data = f.read()
             image = Image.open(BytesIO(image_data))
-            target_width = self.master.views["Data Upload & Image Selection"].width_entry.get()
-            resized_image = self.resize_image_to_display_width(image, 200)  
+            target_width = self.master.views["Data Upload & Image Selection"].width_entry.get() 
+            target_width = int(target_width)
+            resized_image = self.resize_image_to_display_width(image, target_width)  
             tags = features if features else self.image_tag_mappings.get(image_path, {}).get('tags', {})
             formatted_tags = ({f"{v}" for _, v in tags.items()})
             self.add_image_to_gallery(resized_image, tags, image_path)
@@ -161,8 +163,9 @@ class GalleryView(ttk.Frame):
             # Add tags as a label to the image
             if tags:
                 tag_text = ", ".join(tags.values())
-                tag_label = ttk.Label(self.frame_images, text=tag_text, background='white', anchor='e')
+                tag_label = ttk.Label(self.frame_images, text=tag_text, background='#eff0f1', anchor='e')
                 tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
+                tag_label.bind("<MouseWheel>", self._on_mousewheel)
 
             self.current_row_width += image_width_with_padding
             self.current_col += 1
@@ -191,6 +194,14 @@ class GalleryView(ttk.Frame):
         self.current_row_width = 0
         self.current_col = 0
         self.current_row = 0
+        candidates_dir = self.master.views["Data Upload & Image Selection"].candidates_dir
+        for filename in os.listdir(candidates_dir):
+            file_path = os.path.join(candidates_dir, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+            except Exception as e:
+                print(f"Failed to delete {file_path}. Reason: {e}")
 
 
 
