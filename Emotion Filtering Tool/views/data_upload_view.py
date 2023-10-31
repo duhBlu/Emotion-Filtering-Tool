@@ -26,6 +26,7 @@ class DataUploadView(ttk.Frame):
         self.dataset_image_counts = {}
         self.image_tag_mappings = {}
         self.cancellation_event = threading.Event()
+        self.pause_event = threading.Event()
         self.ui_update_queue = queue.Queue()   
         self.label_mapping = {
             'man': 'male',
@@ -285,7 +286,6 @@ class DataUploadView(ttk.Frame):
     '''
     def process_images(self):
         self.cancellation_event.clear()
-        self.master.change_view('Gallery')
         self.processed_images_count = 0
         selected_indices = self.dataset_filenames_listbox.curselection()
         
@@ -307,6 +307,7 @@ class DataUploadView(ttk.Frame):
             messagebox.showinfo("No Filtering Options Selected", "Please select at least one filtering option.")
             return
         
+        self.master.change_view('Gallery')
         NUM_THREADS = os.cpu_count() or 4
       
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
@@ -324,10 +325,7 @@ class DataUploadView(ttk.Frame):
                 
         wait_thread = threading.Thread(target=wait_for_threads)    
         wait_thread.start()
-    
-    '''
-    Partition the image index ranges into the number of threads specified
-    '''   
+      
     def _divide_images_by_count(self, selected_folders, num_threads):
         """ 
         Partition the image index ranges into the number of threads specified
@@ -372,7 +370,6 @@ class DataUploadView(ttk.Frame):
             yield batch
             
     def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
-        
         print("started processing")
         processed_so_far = 0
         candidate_folder = self.candidates_dir
@@ -383,6 +380,8 @@ class DataUploadView(ttk.Frame):
                 for img_path in batched_img_paths:
                     if self.cancellation_event.is_set():
                         return
+                    while self.pause_event.is_set():  # Pauses the processing while the pause event is set
+                        time.sleep(0.5)
                     if start_idx <= processed_so_far < end_idx:
                         accepted_images_dict = self.neural_network_filter([img_path], actions)
                         for img_path, features in accepted_images_dict.items():
@@ -402,6 +401,12 @@ class DataUploadView(ttk.Frame):
     '''
     Listeners for UI updates
     '''  
+    def pause_processing(self):
+        self.pause_event.set()
+
+    def resume_processing(self):
+        self.pause_event.clear()
+        
     def stop_processing(self):
         self.cancellation_event.set() 
         

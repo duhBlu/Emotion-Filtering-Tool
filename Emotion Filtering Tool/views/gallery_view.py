@@ -52,13 +52,17 @@ class GalleryView(ttk.Frame):
         self.review_button = ttk.Button(self, text="Send to Manual Review", command=self.send_to_review)
         self.review_button.grid(row=2, column=0, padx=20, pady=20, sticky='e')
         
-        # cancel the processing so user can change the settings without having to wait for the processing to finish
-        self.stop_processing_button = ttk.Button(self, text="Stop processing", command=self.stop_processing)
-        self.stop_processing_button.grid(row=2, column=0, padx=(5, 20), pady=20, sticky='w')  # Adjusted padx
+        self.clear_button = ttk.Button(self, text="clear", command=self.clear_gallery)
+        self.clear_button.grid(row=2, column=0, padx=(5, 20), pady=20, sticky='w')         
+
+        self.load_more_button = ttk.Button(self, text="Load more", command=self.load_more_images, state=tk.DISABLED)
+        self.load_more_button.grid(row=2, column=0, padx=(105, 5), pady=20, sticky='w') 
         
-        # clear the gallery so user can start over  without sending the images to manual review
-        self.clear_clear_button = ttk.Button(self, text="clear", command=self.clear_gallery)
-        self.clear_clear_button.grid(row=2, column=0, padx=(130, 5), pady=20, sticky='w') 
+        self.stop_processing_button = ttk.Button(self, text="Stop processing", command=self.stop_processing)
+        self.stop_processing_button.grid(row=2, column=0, padx=(205, 5), pady=20, sticky='w') 
+        
+        self.pause_processing_button = ttk.Button(self, text="Pause Processing", command=self.pause_processing)
+        self.pause_processing_button.grid(row=2, column=0, padx=(330, 5), pady=20, sticky='w') 
         
         # progress bar
         self.progress_var = tk.IntVar() 
@@ -75,11 +79,6 @@ class GalleryView(ttk.Frame):
         
     def _on_mousewheel(self, event):
         self.canvas.yview_scroll(-1*(event.delta//120), "units")
-
-
-
-
-    
 
     '''
     Config UI
@@ -108,6 +107,14 @@ class GalleryView(ttk.Frame):
         self.set_progress_maximum(0)
         self.update_progress(0)
 
+    def pause_processing(self):
+        self.master.views['Data Upload & Image Selection'].pause_processing()
+        self.pause_processing_button.config(text="Resume Processing", command=self.resume_processing)
+    
+    def resume_processing(self):
+        self.master.views['Data Upload & Image Selection'].resume_processing()
+        self.pause_processing_button.config(text="Pause Processing", command=self.pause_processing)
+        
     '''
     Recieve and display data
     
@@ -117,33 +124,23 @@ class GalleryView(ttk.Frame):
     and wait for the user to click the load more button, then load in the next
     (100 % (# columns)) images.
     '''   
-    def get_visible_area(self):
-        return self.canvas.yview()
     
 
     def receive_data(self, candidate_folder, image_tag_mapping):
         self.candidate_folder = candidate_folder
-        # Combine with existing image_tag_mappings if present
         self.image_tag_mappings = {**self.image_tag_mappings, **image_tag_mapping}
     
-        # Load the first set of images initially
-        if self.images_loaded < 100:
-            image_path = list(image_tag_mapping.keys())[0] if image_tag_mapping else None
+        image_paths = list(image_tag_mapping.keys())
+        load_count = 100 - self.images_loaded  # Number of images to load in this call
+
+        for image_path in image_paths[:load_count]:
             features = image_tag_mapping.get(image_path, {}).get('tags', {})
             if features:
                 self.load_single_image(image_path, features)
                 self.images_loaded += 1
+            if self.images_loaded >= 100:  # If initial set of images have been loaded
+                self.load_more_button["state"] = tk.NORMAL
 
-
-    def images_to_load(self):
-        top, bottom = self.get_visible_area()
-        total_images = len(self.candidate_images)
-    
-        # Estimate indices of images to display based on visible portion of canvas
-        start_index = int(top * total_images)
-        end_index = min(int(bottom * total_images) + 5, total_images)  # Ensure it's within bounds
-    
-        return range(start_index, end_index)
 
     def load_single_image(self, image_path, features=None):
         if image_path in self.candidate_images :  # Check if image is already loaded
@@ -210,7 +207,20 @@ class GalleryView(ttk.Frame):
 
         except Exception as e:
             print(f"Error displaying image: {e}")
-            
+      
+    def load_more_images(self):
+        self.load_more_button["state"] = tk.DISABLED
+        load_count = 100 if self.images_loaded >= 100 else 100
+
+        remaining_images = {k: v for k, v in self.image_tag_mappings.items() if k not in self.candidate_images}
+        image_paths = list(remaining_images.keys())
+
+        for image_path in image_paths[:load_count]:
+            features = remaining_images.get(image_path, {}).get('tags', {})
+            if features:
+                self.load_single_image(image_path, features)
+                self.images_loaded += 1
+            self.load_more_button["state"] = tk.NORMAL
     '''
     Clear Images
     '''         
@@ -228,6 +238,7 @@ class GalleryView(ttk.Frame):
         self.current_col = 0
         self.current_row = 0
         self.images_loaded = 0
+        self.load_more_button["state"] = tk.DISABLED
         candidates_dir = self.master.views["Data Upload & Image Selection"].candidates_dir
         for filename in os.listdir(candidates_dir):
             file_path = os.path.join(candidates_dir, filename)
