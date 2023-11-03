@@ -19,8 +19,9 @@ class ManualReviewView(ttk.Frame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0)
         self.grid_rowconfigure(2, weight=0)
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_columnconfigure(1, weight=0) 
+        self.grid_columnconfigure(0, weight=3)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_columnconfigure(2, weight=0) 
         self.create_widgets()
 
         
@@ -29,10 +30,10 @@ class ManualReviewView(ttk.Frame):
     '''
     def create_widgets(self):
         self.canvas = tk.Canvas(self)
-        self.canvas.grid(row=0, column=0, sticky="nsew")
+        self.canvas.grid(row=0, column=0,columnspan=2, sticky="nsew")
 
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollbar.grid(row=0, column=1, sticky='nse')
+        self.scrollbar.grid(row=0, column=2, sticky='nse')
 
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
 
@@ -42,20 +43,24 @@ class ManualReviewView(ttk.Frame):
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
-        self.accept_button = ttk.Button(self, text="Accept Selected", command=self.accept_images)
-        self.accept_button.grid(row=1, column=0, padx=10, pady=10, sticky="w")
         
-        self.accepted_count_label = ttk.Label(self, text=f"Accepted Images: {self.accepted_count}")
-        self.accepted_count_label.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="n")
+        self.accepted_count_label = ttk.Label(self, text=f"Total: {self.accepted_count}")
+        self.accepted_count_label.grid(row=1, column=1, padx=215, pady=5, sticky="e")
         
-        self.total_accepted_count_label = ttk.Label(self, text=f"Accepted Images This Session: {self.total_accepted_count}")
-        self.total_accepted_count_label.grid(row=1, column=0, padx=10, pady=(10,0), sticky="s")
-
-        self.reject_button = ttk.Button(self, text="Reject Selected", command=self.reject_images)
-        self.reject_button.grid(row=1, column=0, padx=10, pady=10, sticky="e")
+        self.total_accepted_count_label = ttk.Label(self, text=f"Total this Session: {self.total_accepted_count}")
+        self.total_accepted_count_label.grid(row=1, column=1, padx=10, pady=5, sticky="e")
         
         self.send_to_augment_button = ttk.Button(self, text="Send Accepted to Augmentation", command=self.send_to_augment)
-        self.send_to_augment_button.grid(row=2, column=0, padx=10, pady=10, sticky="")
+        self.send_to_augment_button.grid(row=2, column=1, ipadx=20, ipady=20, padx=10, pady=10, sticky="e")
+        
+        style = ttk.Style(self)
+        
+        # Setting up style for the accept button on hover
+        self.accept_button = ttk.Button(self, text="Accept Selected", command=self.accept_images)
+        self.accept_button.grid(row=2, column=0, padx=5, pady=10, ipadx=30, ipady=30, sticky="e")
+       
+        self.reject_button = ttk.Button(self, text="Reject Selected", command=self.reject_images)
+        self.reject_button.grid(row=2, column=1, padx=5, pady=10, ipadx=30, ipady=30, sticky="w")
         
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
