@@ -14,9 +14,10 @@ class AugmentationView(ttk.Frame):
         self.current_row = 0
         self.current_col = 0
         self.current_row_width = 0
-        self.photo_images = []
+        self.photo_images = {}
         self.selected_images = defaultdict(bool)
         self.image_frames = {}
+        self.index_to_key_mapping = {}
         self.changed_images = set()
         self.original_images = {} 
         self.create_widgets()
@@ -56,54 +57,64 @@ class AugmentationView(ttk.Frame):
     '''
     def save_augmented_images(self):
         self.master.views['Dataset Export Options'].receive_images(self.photo_images)
-        self.photo_images = []
+        self.clear_images()
         self.master.change_view('Dataset Export Options')
     
-    '''
-    Load and Display Images
-    '''        
-    def show_images(self, photo_images):
-        self.photo_images = photo_images
-        self.original_images = {idx: ImageTk.getimage(img) for idx, img in enumerate(self.photo_images)}  # Store original PIL images
+    def clear_images(self):
+        for frame in self.image_frames.values():
+            frame.destroy()
+        self.image_frames.clear()
+        self.photo_images.clear()
         self.current_row = 0
         self.current_col = 0
-        self.selected_images.clear()
+        self.current_row_width = 0
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+    '''
+    Load and Display Images
+    '''    
+    def load_accepted_images(self, accepted_images):
+        self.photo_images.update(accepted_images)
+        self.show_images(self.photo_images)    
 
-        for idx, photo in enumerate(self.photo_images):
-            self.add_image_to_augment(idx, photo)
+    def show_images(self, accepted_images):
+        for idx, (file_path, image_data) in enumerate(accepted_images.items()):
+            photo = image_data['photo']  # Use the photo directly, assuming it's already a PhotoImage
+            tags = image_data['tags']
+            self.index_to_key_mapping[idx] = file_path
+            self.add_image_to_augment(file_path, photo, tags, idx)
+    
+        # Update canvas scroll region
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    def add_image_to_augment(self, idx, photo):
-        # Calculate the width of the image with padding and checkbutton
-        image_width_with_padding = photo.width() + 10 + 20  # 10 for padding and 20 for checkbutton
-        
-        # Check if adding this image would exceed the max frame width
+    def add_image_to_augment(self, file_path, photo, tags, idx):
+        # The structure and logic here are adjusted to match the Manual Review's method
+        image_width_with_padding = photo.width() + 10
+
         if self.current_row_width + image_width_with_padding > self.canvas.winfo_width():
-            # Reset for a new row
             self.current_row_width = 0
             self.current_col = 0
             self.current_row += 1
 
-        frame = ttk.Frame(self.frame_images, relief="flat")
-        frame.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
-        self.image_frames[idx] = frame
-
         check_var = tk.IntVar()
-        checkbutton = ttk.Checkbutton(frame, variable=check_var)
-        checkbutton.grid(row=0, column=0, sticky="nw")
-        checkbutton['command'] = lambda idx=idx, var=check_var: self.toggle_selection(idx, var)
-
-        img_label = ttk.Label(frame, image=photo)
-        img_label.grid(row=0, column=1, sticky="ne")
+        img_label = ttk.Label(self.frame_images, image=photo)
+        img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
         img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
         img_label.bind("<MouseWheel>", self._on_mousewheel)
-        
-        self.selected_images[idx] = False
 
-        # Update current row width and column
+        checkbutton = ttk.Checkbutton(self.frame_images, variable=check_var)
+        checkbutton.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
+        checkbutton['command'] = lambda idx=idx, var=check_var: self.toggle_selection(idx, var)
+
+        tag_string = ', '.join([f"{v}" for _, v in tags.items()])
+        tag_label = ttk.Label(self.frame_images, text=tag_string)
+        tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
+        tag_label.bind("<MouseWheel>", self._on_mousewheel)
+
         self.current_row_width += image_width_with_padding
         self.current_col += 1
-        
+
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
     
     '''
     Image Selection logic
@@ -182,11 +193,11 @@ class AugmentationView(ttk.Frame):
         self.reject_button = reject_button
         self.accept_button = accept_button
         
-        # Show the first image if there is any selected
         if self.selected_indices_queue:
-            first_idx = self.selected_indices_queue.pop(0)
+            first_idx = self.selected_indices_queue[0]  # Changed from pop(0) to just access
+            self.current_image = first_idx  # Use the first index as the current image
             self.show_next_image(first_idx, img_label, augment_window)
-            
+
         self.update_buttons()
             
     def mark_as_changed(self):
@@ -205,39 +216,61 @@ class AugmentationView(ttk.Frame):
             self.accept_button['text'] = "Skip" 
             
     def accept_augment(self, img_label, augment_window, label_text):
-        if self.current_image < self.total_images:
+        if self.selected_indices_queue:
+            current_idx = self.selected_indices_queue.pop(0)
+            self.current_image = current_idx  # Update current_image to the current index
             label_text.set(f"Image {self.current_image + 1} of {self.total_images}")
 
-            augmented_image_pil = self.original_images[self.current_image - 1]  # Replace with actual augmented image
-            augmented_image = ImageTk.PhotoImage(image=augmented_image_pil)
-
-            # Update the photo_images list with the augmented image
-            self.photo_images[self.current_image - 1] = augmented_image
-
-            # Display the next image if any are left
-            if self.selected_indices_queue:
-                next_idx = self.selected_indices_queue.pop(0)
-                self.show_next_image(next_idx, img_label, augment_window)
-                self.update_buttons()
+            # If changes have been applied, save and display the augmented image
+            if current_idx in self.changed_images:
+                original_image_pil = self.original_images[current_idx]
+                augmented_image_pil = self.augment_images(original_image_pil)
+                augmented_image = ImageTk.PhotoImage(image=augmented_image_pil)
+                self.photo_images[current_idx] = augmented_image  # Save augmented image
+                img_label.config(image=augmented_image)
+                img_label.image = augmented_image
+                self.changed_images.remove(current_idx)  # Remove from changed images list
+            # If no changes have been applied, simply display the next image
             else:
-                augment_window.destroy()
+                if self.selected_indices_queue:
+                    next_idx = self.selected_indices_queue[0]
+                    next_image_pil = self.original_images[next_idx]
+                    next_image = ImageTk.PhotoImage(image=next_image_pil)
+                    img_label.config(image=next_image)
+                    img_label.image = next_image
+                    self.current_image = next_idx
+
+            self.update_buttons()  # Update buttons state
+            label_text.set(f"Image {self.current_image + 1} of {self.total_images}")
         else:
-            # No more images to process, destroy the window
             augment_window.destroy()
-            
+
     def cancel_augment(self, img_label, augment_window, label_text):
-        # Restore the original image from the stored dictionary
-        original_pil_image = self.original_images[self.current_image - 1]
-        original_tk_image = ImageTk.PhotoImage(image=original_pil_image)
-        self.photo_images[self.current_image - 1] = original_tk_image
-        self.changed_images.remove(self.current_image)
-        self.update_buttons()
+        if self.selected_indices_queue:
+            current_idx = self.selected_indices_queue[0]
+            original_image_pil = self.original_images[current_idx]
+            original_image = ImageTk.PhotoImage(image=original_image_pil)
+            img_label.config(image=original_image)
+            img_label.image = original_image
+            if current_idx in self.changed_images:
+                self.changed_images.remove(current_idx)  # Revert changes
+            self.update_buttons()  # Update the buttons to reflect the reversion
+        else:
+            augment_window.destroy()
 
     def show_next_image(self, idx, img_label, augment_window):
-        # Display next image and apply augmentation here
-        # For demonstration, just displaying the image
-        self.current_image += 1
-        img_label.config(image=self.photo_images[idx])
-        img_label.image = self.photo_images[idx]
-        
-        self.update_buttons()
+        # Get the image path from the index
+        image_path = self.index_to_key_mapping.get(idx)
+
+        # Check if the image path exists in the mapping
+        if image_path and image_path in self.photo_images:
+            self.current_image = idx  # Update the current image index
+            tk_image = self.photo_images[image_path]  # Retrieve the image using the path
+
+            img_label.config(image=tk_image['photo'])
+            img_label.image = tk_image  # Keep a reference to avoid garbage collection
+
+            self.update_buttons()
+        else:
+            # Handle the case where the image path is not found
+            print(f"No image found for index: {idx}")

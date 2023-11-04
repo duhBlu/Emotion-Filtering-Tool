@@ -430,17 +430,40 @@ class DataUploadView(ttk.Frame):
         self.master.views['Gallery'].update_idletasks() 
 
     def get_custom_emotion(self, deepface_output):
+        # Define a threshold for the dominance of an emotion
+        dominance_threshold = 0.1
+
+        # Define the custom emotion scores with adjusted weights
         custom_emotion_scores = {
-            "Angry": deepface_output['angry'],
-            "Crying": 0.8 * deepface_output['sad'] + 0.2 * deepface_output['neutral'],
+            "Angry": deepface_output['angry'] + 0.2 * deepface_output['neutral'],
+            "Crying": 0.8 * deepface_output['sad'] + 0.1 * deepface_output['neutral'],
             "Sad": deepface_output['sad'],
             "Surprised": deepface_output['surprise'],
-            "Confused": 0.5 * deepface_output['neutral'] + 0.3 * deepface_output['fear'] + 0.2 * deepface_output['angry'],
-            "Shy": 0.9 * deepface_output['neutral'] + 0.1 * deepface_output['fear'],
+            "Confused": 0.3 * deepface_output['neutral'] + 0.4 * deepface_output['fear'] + 0.3 * deepface_output['angry'],
+            "Shy": 0.6 * deepface_output['neutral'] + 0.4 * deepface_output['fear'],
             "Neutral": deepface_output['neutral']
         }
-        dominant_custom_emotion = max(custom_emotion_scores, key=custom_emotion_scores.get)
+
+        # Normalize the scores
+        total_score = sum(custom_emotion_scores.values())
+        for emotion in custom_emotion_scores:
+            custom_emotion_scores[emotion] /= total_score
+
+        # Sort the emotions by their scores in descending order
+        sorted_emotions = sorted(custom_emotion_scores.items(), key=lambda item: item[1], reverse=True)
+
+        # Get the dominant emotion, if it's not 'Neutral', or the second highest otherwise
+        if sorted_emotions[0][0] == "Neutral" and len(sorted_emotions) > 1:
+            # Check if the neutral score is not dominantly higher than the second
+            if sorted_emotions[0][1] - sorted_emotions[1][1] < dominance_threshold:
+                dominant_custom_emotion = sorted_emotions[1][0]
+            else:
+                dominant_custom_emotion = "Neutral"
+        else:
+            dominant_custom_emotion = sorted_emotions[0][0]
+
         return dominant_custom_emotion
+
     
     def age_within_selected_range(self, detected_age, selected_age_ranges):
         if "Infants (1 month to 1 year)" in selected_age_ranges and 1 <= detected_age < 12:

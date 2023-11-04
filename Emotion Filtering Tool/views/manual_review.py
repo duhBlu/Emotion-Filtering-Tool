@@ -121,7 +121,10 @@ class ManualReviewView(ttk.Frame):
             return True
         else:
             return False
-        
+    
+    '''
+    Update the tags for the selected images
+    '''    
     def update_tags_for_selected_images(self):
         ordered_paths = list(self.photo_images.keys())
         # Loop over the indices in self.selected_images
@@ -177,22 +180,19 @@ class ManualReviewView(ttk.Frame):
     Send data to Augmentation view
     '''
     def send_to_augment(self):
-        self.master.views['Image Augmentation'].show_images(self.accepted_images)
+        self.master.views['Image Augmentation'].load_accepted_images(self.accepted_images)
         self.master.change_view('Image Augmentation')
         self.accepted_images = {}
         self.accepted_count = 0
-        self.total_accepted_count = 0
-        self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
-        self.total_accepted_count_label.config(text=f"Accepted Images this Session: {self.total_accepted_count}")
+        self.accepted_count_label.config(text=f"Total: {self.accepted_count}")
+        self.total_accepted_count_label.config(text=f"Total this Session: {self.total_accepted_count}")
     
     '''
     Clear Images
     '''
     def clear_review(self):
         """Clears all images from the review view."""
-        for widget in self.frame_images.winfo_children():
-            widget.destroy()
-
+        self.clear_image_grid()
         # Reset attributes
         self.photo_images = {}
         self.accepted_images = {}
@@ -297,8 +297,8 @@ class ManualReviewView(ttk.Frame):
         
         self.photo_images = new_photo_images  # Set photo_images to only the ones not selected
         self.show_images(self.photo_images, True)  # Refresh the view with remaining images
-        self.accepted_count_label.config(text=f"Accepted Images: {self.accepted_count}")
-        self.total_accepted_count_label.config(text=f"Accepted Images this Session: {self.total_accepted_count}")
+        self.accepted_count_label.config(text=f"Total: {self.accepted_count}")
+        self.total_accepted_count_label.config(text=f"Total this Session: {self.total_accepted_count}")
         self.selected_images.clear()
 
 
