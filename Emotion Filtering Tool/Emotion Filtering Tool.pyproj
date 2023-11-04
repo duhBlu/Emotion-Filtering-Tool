@@ -23,7 +23,9 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
+    <Folder Include="Resources\" />
     <Folder Include="Requirements\" />
+    <Folder Include="Resources\Icons\" />
     <Folder Include="views\" />
   </ItemGroup>
   <ItemGroup>

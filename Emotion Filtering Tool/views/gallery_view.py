@@ -1,4 +1,5 @@
 import os
+from random import setstate
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -106,6 +107,7 @@ class GalleryView(ttk.Frame):
         self.master.views['Data Upload & Image Selection'].stop_processing()
         self.set_progress_maximum(0)
         self.update_progress(0)
+        self.stop_processing_button["state"] = tk.DISABLED
 
     def pause_processing(self):
         self.master.views['Data Upload & Image Selection'].pause_processing()
@@ -114,7 +116,7 @@ class GalleryView(ttk.Frame):
     def resume_processing(self):
         self.master.views['Data Upload & Image Selection'].resume_processing()
         self.pause_processing_button.config(text="Pause Processing", command=self.pause_processing)
-        
+       
     '''
     Recieve and display data
     
