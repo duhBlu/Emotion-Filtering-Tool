@@ -1,20 +1,21 @@
+from pprint import pprint
 import tkinter as tk
-from tkinter import ttk, Entry, Label
+from tkinter import ttk
 from collections import defaultdict
-from turtle import width
 from PIL import Image, ImageTk
-from io import BytesIO
-
+import tkinter.messagebox as mb
+import os
+import shutil
+import uuid
 class ManualReviewView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
-        self.photo_images = {}
-        self.accepted_images = {}
         self.accepted_count = 0  # count of accepted images
         self.total_accepted_count = 0  # count of accepted images this session
-        self.selected_images = defaultdict(bool)
+        self.selected_images = defaultdict(bool) 
         self.tag_labels = {}
-        self.image_frames = {}
+        self.pending_image_paths = []
+        self.imageTk_objects = []
         self.current_row = 0 
         self.current_col = 0
         self.current_row_width = 0 
@@ -55,7 +56,7 @@ class ManualReviewView(ttk.Frame):
         self.send_to_augment_button = ttk.Button(self, text="Send Accepted to Augmentation", command=self.send_to_augment)
         self.send_to_augment_button.grid(row=2, column=1, ipadx=20, ipady=20, padx=10, pady=10, sticky="se")
         
-        data_upload_view = self.master.views["Data Upload & Image Selection"]
+        data_upload_view = self.master.views["Upload"]
         emotion_options = ['<None>', '<Remove>'] + list(data_upload_view.emotion_vars.keys())
         race_options = ['<None>', '<Remove>'] + list(data_upload_view.race_vars.keys())
         gender_options = ['<None>', '<Remove>'] + list(data_upload_view.gender_vars.keys())
@@ -94,14 +95,23 @@ class ManualReviewView(ttk.Frame):
         # Setting up style for the accept button on hover
         self.accept_button = ttk.Button(self, text="Accept Selected", command=self.accept_images)
         self.accept_button.grid(row=2, column=0, padx=5, pady=10, ipadx=30, ipady=30, sticky="se")
-       
+        self.accept_button.bind("<Enter>", self.on_enter)
+        self.accept_button.bind("<Leave>", self.on_leave)
+        
         self.reject_button = ttk.Button(self, text="Reject Selected", command=self.reject_images)
         self.reject_button.grid(row=2, column=1, padx=5, pady=10, ipadx=30, ipady=30, sticky="sw")
-
-        update_tags_button = ttk.Button(self, text="Update Tags", command=self.update_tags_for_selected_images)
+        self.accept_button.bind("<Enter>", self.on_enter)
+        self.accept_button.bind("<Leave>", self.on_leave)
+        
+        update_tags_button = ttk.Button(self, text="Update Tags", command=self.update_tags)
         update_tags_button.grid(row=2, column=0, padx=(320, 0), pady=(0,35), sticky='sw')
     
-    
+    def on_enter(self, event):
+        pass
+            
+    def on_leave(self, event):
+        pass
+        
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
@@ -125,53 +135,38 @@ class ManualReviewView(ttk.Frame):
     '''
     Update the tags for the selected images
     '''    
-    def update_tags_for_selected_images(self):
-        ordered_paths = list(self.photo_images.keys())
+    def update_tags(self):
         # Loop over the indices in self.selected_images
         for idx in self.selected_images:
             if self.selected_images[idx]:  # Check if the current image is selected
-                # Use the index to get the correct file path
-                image_path = ordered_paths[idx]
-                image_tags = self.photo_images[image_path]['tags']
+                # Use the index to get the correct file path from pending_image_paths
+                image_path = self.pending_image_paths[idx]
+                image_data = self.master.master_image_dict.get(image_path, {})
+                image_tags = image_data.get('tags', {})
 
-                # Update or remove tags based on the selections in the combo boxes
-                emotion_selection = self.emotion_combobox.get()
-                if emotion_selection == '<Remove>':
-                    image_tags.pop('emotion', None)  # Remove the tag if it exists
-                elif emotion_selection != '<None>':
-                    image_tags['emotion'] = emotion_selection
+                # Define a dictionary with tag keys and their associated UI components and optional conditions
+                ui_elements = {
+                    'emotion': (self.emotion_combobox.get(), None),
+                    'age': (self.age_entry.get(), lambda x: x.isdigit() and 0 <= int(x) <= 100),
+                    'race': (self.race_combobox.get(), None),
+                    'gender': (self.gender_combobox.get(), None)
+                }
 
-                # Handle the age tag update or removal
-                age_selection = self.age_entry.get()
-                if self.is_checked.get():
-                    image_tags.pop('age', None)  # Remove the age tag based on the checkbox
-                elif age_selection.isdigit() and 0 <= int(age_selection) <= 100:
-                    image_tags['age'] = age_selection  # Update the age tag if it's a valid number
+                # Update or remove tags based on selections
+                for tag_key, (selection, condition) in ui_elements.items():
+                    if tag_key == 'age' and self.is_checked.get():
+                        image_tags.pop(tag_key, None)
+                    elif selection == '<Remove>':
+                        image_tags.pop(tag_key, None)
+                    elif selection != '<None>' and (condition is None or condition(selection)):
+                        image_tags[tag_key] = selection
 
-                # Handle the race tag update or removal
-                race_selection = self.race_combobox.get()
-                if race_selection == '<Remove>':
-                    image_tags.pop('race', None)
-                elif race_selection != '<None>':
-                    image_tags['race'] = race_selection
+                if image_data:
+                    self.master.master_image_dict[image_path]['tags'] = image_tags
 
-                # Handle the gender tag update or removal
-                gender_selection = self.gender_combobox.get()
-                if gender_selection == '<Remove>':
-                    image_tags.pop('gender', None)
-                elif gender_selection != '<None>':
-                    image_tags['gender'] = gender_selection
-
-                # Update the photo_images dictionary with the new tags
-                self.photo_images[image_path]['tags'] = image_tags
-
-                # Generate the new tag string
                 new_tag_string = ', '.join([f"{v.lower()}" for _, v in image_tags.items()])
 
-                # Retrieve the tag label using the image index
                 tag_label = self.tag_labels.get(idx)
-
-                # Update the tag label's text if it exists
                 if tag_label:
                     tag_label.config(text=new_tag_string)
                 self.canvas.update_idletasks()
@@ -180,54 +175,73 @@ class ManualReviewView(ttk.Frame):
     Send data to Augmentation view
     '''
     def send_to_augment(self):
-        self.master.views['Image Augmentation'].load_accepted_images(self.accepted_images)
-        self.master.change_view('Image Augmentation')
-        self.accepted_images = {}
-        self.accepted_count = 0
-        self.accepted_count_label.config(text=f"Total: {self.accepted_count}")
-        self.total_accepted_count_label.config(text=f"Total this Session: {self.total_accepted_count}")
+        if self.accepted_count == 0:
+            mb.showinfo("Information", "No images have been selected for acceptance.")
+        else:
+            accepted_image_paths = [path for path, data in self.master.master_image_dict.items() 
+                                    if data['working_directory'] == self.master.accepted_images_dir]
+            self.master.views['Augment'].receive_data(accepted_image_paths)
+            self.master.change_view('Augment')
     
+            self.accepted_count = 0
+            self.accepted_count_label.config(text=f"Total: {self.accepted_count}")
+            self.total_accepted_count_label.config(text=f"Total this Session: {self.total_accepted_count}")
+
     '''
     Clear Images
     '''
     def clear_review(self):
         """Clears all images from the review view."""
         self.clear_image_grid()
-        # Reset attributes
-        self.photo_images = {}
-        self.accepted_images = {}
-        self.selected_images = defaultdict(bool)
-        self.image_frames = {}
+        self.selected_images.clear()
         self.current_row = 0 
         self.current_col = 0
         self.current_row_width = 0 
+        
+    def clear_image_grid(self):
+        # clear images and label/checkboxe children
+        for widget in self.frame_images.winfo_children():
+            widget.destroy()
     
     '''
     Load and Display Images
     '''
-    def load_candidate_images(self, candidate_images):
-        self.photo_images.update(candidate_images)
-        self.show_images(self.photo_images, False)
+    def receive_data(self, image_paths):
+        for _, image_path in enumerate(image_paths):
+            self.pending_image_paths.append(image_path)
+        self.show_images(image_paths, False)
     
-    def clear_image_grid(self):
-        for widget in self.frame_images.winfo_children():
-            widget.destroy()
 
-    def show_images(self, images, clear): 
+    def show_images(self, image_paths, clear): 
         if clear:
-            self.current_col = 0
-            self.current_row = 0
-            self.current_row_width = 0
-            self.clear_image_grid()
-        for idx, (image_path, image_data) in enumerate(images.items()):
-            photo = image_data['photo']
-            tags = image_data['tags']
-            self.add_image_to_review(idx, image_path, photo, tags)
+            self.clear_review()
+        for idx, image_path in enumerate(image_paths):
+            image_data = self.master.master_image_dict.get(image_path, {})
+            photo_object = image_data.get('photo_object')
+            tags = image_data.get('tags', {})
 
-        # Update canvas scroll region
+            # Resize the image to display width using the photo object
+            resized_image = self.resize_image(photo_object)
+            formatted_tags = ", ".join(tags.values()) if tags else ""
+            
+            self.add_image_to_review(idx, resized_image, formatted_tags)
+
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+    def resize_image(self, image):
+        display_width = self.master.views["Upload"].width_entry.get() 
+        display_width = int(display_width)
+        original_width, original_height = image.size
+        aspect_ratio = original_width / original_height
+        new_width = display_width
+        new_height = int(new_width / aspect_ratio)
+        image = image.resize((new_width, new_height))
+        return image
     
-    def add_image_to_review(self, idx, image_path, photo, tags):
+    def add_image_to_review(self, idx, image, tags):
+        photo = ImageTk.PhotoImage(image)
+        self.imageTk_objects.append(photo)
+
         image_width_with_padding = photo.width() + 10
 
         # Check if adding this image would exceed the max frame width
@@ -250,14 +264,11 @@ class ManualReviewView(ttk.Frame):
         checkbutton['command'] = lambda idx=idx, var=check_var: self.toggle_selection(idx, var)
 
         # Add tags as a label to the image
-        tag_string = ', '.join([f"{v}" for _, v in tags.items()])
-        tag_label = ttk.Label(self.frame_images, text=tag_string)
+        tag_label = ttk.Label(self.frame_images, text=tags)
         tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
         tag_label.bind("<MouseWheel>", self._on_mousewheel)
         
         self.tag_labels[idx] = tag_label
-        
-        # Update current row width and column
         self.current_row_width += image_width_with_padding
         self.current_col += 1
 
@@ -267,9 +278,7 @@ class ManualReviewView(ttk.Frame):
     Image Selection/Acceptance/Rejection logic
     '''
     def image_click(self, idx, var):
-        # Toggle checkbox state
         var.set(1 - var.get())
-        # Update the selection
         self.toggle_selection(idx, var)
 
     def toggle_selection(self, idx, var):
@@ -282,24 +291,50 @@ class ManualReviewView(ttk.Frame):
         self.process_selected_images(accept=False)
 
     def process_selected_images(self, accept=True):
-        new_photo_images = {}
-        for idx, image_data in enumerate(self.photo_images.items()):
-            image_path, tag_data = image_data
+        # Create a list of selected indices to process
+        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
+        # Create a list to collect the paths of images to remove from pending_image_paths
+        paths_to_remove = []
 
-            selected = self.selected_images.get(idx)
-            
-            if accept and selected:
-                self.accepted_images[image_path] = tag_data
-                self.accepted_count += 1
-                self.total_accepted_count += 1  # Incrementing the total accepted count
-            elif not selected:
-                new_photo_images[image_path] = tag_data
-        
-        self.photo_images = new_photo_images  # Set photo_images to only the ones not selected
-        self.show_images(self.photo_images, True)  # Refresh the view with remaining images
+        # Iterate over selected indices
+        for idx in selected_indices:
+            # Since the pending_image_paths list might be shorter than the number of items in selected_images
+            # due to previous removals, make sure the index is within range.
+            if idx < len(self.pending_image_paths):
+                image_path = self.pending_image_paths[idx]
+                image_data = self.master.master_image_dict[image_path]
+
+                if accept:
+                    # Move the image to the accepted images directory
+                    dest_path = os.path.join(self.master.accepted_images_dir, os.path.basename(image_path))
+                    shutil.copy2(image_path, dest_path)
+                    image_data['working_directory'] = self.master.accepted_images_dir
+                    pprint(image_data)
+                    self.master.master_image_dict[dest_path] = image_data
+                    del self.master.master_image_dict[image_path]
+                    os.remove(image_path)
+
+                    self.accepted_count += 1
+                    self.total_accepted_count += 1
+                else:
+                    # Remove the rejected image from the master image dictionary and delete the file
+                    del self.master.master_image_dict[image_path]
+                    os.remove(image_path)
+
+                # Add this path to the list of paths to remove
+                paths_to_remove.append(image_path)
+
+        # Now remove the processed paths from pending_image_paths
+        for path in paths_to_remove:
+            self.pending_image_paths.remove(path)
+
+        # Show only the images that are still pending review
+        self.show_images(self.pending_image_paths, True)
+
+        # Update the UI with the counts of accepted images
         self.accepted_count_label.config(text=f"Total: {self.accepted_count}")
         self.total_accepted_count_label.config(text=f"Total this Session: {self.total_accepted_count}")
-        self.selected_images.clear()
+
 
 
     

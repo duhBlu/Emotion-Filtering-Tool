@@ -1,11 +1,15 @@
+from datetime import datetime
+from io import BytesIO
 from tkinter import ttk, filedialog
 import tkinter as tk
 import threading
+import uuid
 import zipfile
 import tarfile
 import os
 import shutil
 import tkinter.messagebox as messagebox
+from PIL import Image
 from deepface import DeepFace
 import queue
 import time
@@ -24,7 +28,6 @@ class DataUploadView(ttk.Frame):
         self.uploaded_files = []
         self.process_lock = threading.Lock()
         self.dataset_image_counts = {}
-        self.image_tag_mappings = {}
         self.cancellation_event = threading.Event()
         self.pause_event = threading.Event()
         self.ui_update_queue = queue.Queue()   
@@ -111,11 +114,28 @@ class DataUploadView(ttk.Frame):
         self.width_entry = ttk.Entry(self, width=5)
         self.width_entry.grid(row=3, column=1, sticky='w', padx=(60, 0), pady=(220, 0))
         self.width_entry.insert(0, "200")  # default width
+        self.width_entry.bind("<FocusOut>", self.validate_width_entry)
 
 
         # Move the process button slightly to the right to accommodate the new entries
         self.process_button.grid(row=3, column=1, padx=(250, 20), pady=20, sticky='se')
-        
+    
+    def validate_width_entry(self, event):
+        try:
+            # Get the current width value from the entry
+            user_width = int(self.width_entry.get())
+            # Calculate half of the canvas width
+            half_canvas_width = self.master.views["Gallery"].canvas.winfo_width() // 2
+
+            # If user's entry is greater than half the canvas width, reset it to half
+            if user_width > half_canvas_width:
+                self.width_entry.delete(0, tk.END)
+                self.width_entry.insert(0, str(half_canvas_width))
+        except ValueError:
+            # Handle the case where the entry is not an integer
+            self.width_entry.delete(0, tk.END)
+            self.width_entry.insert(0, "200")
+    
     def create_emotion_tab(self):
         frame = ttk.Frame(self.notebook)
         self.notebook.add(frame, text="Emotions")
@@ -131,7 +151,7 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Age Range")
 
         age_options = ["Infants (1 month to 1 year)", "Children (1 year through 12 years)", "Teenagers (13 years through 17 years.)", "Adults (18 years or older)", "Older adults (65 and older)"]
-        self.age_vars = {option: tk.BooleanVar(value=True) for option in age_options}
+        self.age_vars = {option: tk.BooleanVar() for option in age_options}
         for i, option in enumerate(age_options):
             ttk.Checkbutton(frame, text=option, variable=self.age_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
             
@@ -149,29 +169,38 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Gender")
 
         gender_options = ["male", "female"]  
-        self.gender_vars = {option: tk.BooleanVar(value=True) for option in gender_options}
+        self.gender_vars = {option: tk.BooleanVar() for option in gender_options}
         for i, option in enumerate(gender_options):
             ttk.Checkbutton(frame, text=option, variable=self.gender_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
     
     def append_status(self, status_text):
-        """Appends the provided text to the top of the status text widget with fading effect."""
-        self.status_text.config(state=tk.NORMAL, spacing1=5)  # Temporarily enable editing
+        """Appends the provided text to the bottom of the status text widget with a fading effect."""
+        self.status_text.config(state=tk.NORMAL)  # Temporarily enable editing
 
-        # Insert new message with the darkest color at the beginning
-        self.status_text.insert("1.0", status_text + "\n")
-        self.status_text.tag_add("color0", "1.0 linestart", "1.0 lineend")
-        self.status_text.tag_configure("color0", foreground=self.colors[0])
+        # Insert new message at the end
+        self.status_text.insert(tk.END, status_text + "\n")
 
-        # Adjust colors of the subsequent lines to create the fading effect
-        for i in range(1, len(self.colors)):
-            line_start = f"1.0 + {i} lines linestart"
-            line_end = f"1.0 + {i} lines lineend"
-            self.status_text.tag_remove(f"color{i-1}", line_start, line_end)
-            self.status_text.tag_add(f"color{i}", line_start, line_end)
+        # Update the tags for each existing line to shift the gradient up
+        for i in range(len(self.colors) - 1, 0, -1):
+            self.status_text.tag_remove(f"color{i}", "1.0", tk.END)
+            self.status_text.tag_add(f"color{i}", f"end-{i+1}l linestart", f"end-{i}l lineend")
             self.status_text.tag_configure(f"color{i}", foreground=self.colors[i])
 
-        self.status_text.config(state=tk.DISABLED)
- 
+        # Apply the darkest color to the new message
+        self.status_text.tag_add("color0", "end-1l linestart", "end-1l lineend")
+        self.status_text.tag_configure("color0", foreground=self.colors[0])
+
+        # Apply the lightest color to any lines beyond the number of colors
+        total_lines = int(self.status_text.index('end-1c').split('.')[0])
+        if total_lines > len(self.colors):
+            for i in range(total_lines - len(self.colors)):
+                self.status_text.tag_add(f"color{len(self.colors)-1}", f"{i+1}.0 linestart", f"{i+1}.0 lineend")
+
+        # Scroll to the bottom of the text widget
+        self.status_text.yview_moveto(1)
+
+        self.status_text.config(state=tk.DISABLED)  # Disable editing again
+
     '''
     Upload Dataset
     '''
@@ -210,11 +239,6 @@ class DataUploadView(ttk.Frame):
         Accepts .zip, .tar, .tar.gz, .tar.bz2
     '''
     def extract_archive(self, archive_path, ext):
-        self.extract_dir = os.path.join(os.path.dirname(archive_path), "extracted_dir")
-        if not os.path.exists(self.extract_dir): os.mkdir(self.extract_dir)
-        self.candidates_dir = os.path.join(self.extract_dir, "Candidates")
-        if not os.path.exists(self.candidates_dir): os.mkdir(self.candidates_dir)
-        
         #ext = os.path.splitext(archive_path)[1]
         if ext == '.gz' or ext == '.bz2':  # Handle tar.gz and tar.bz2
             ext = '.'.join(os.path.basename(archive_path).split('.')[-2:])
@@ -223,7 +247,7 @@ class DataUploadView(ttk.Frame):
 
     def _threaded_extraction(self, archive_path, ext):
         base_name = os.path.basename(archive_path).replace(ext, '')
-        extract_dir = os.path.join(self.extract_dir, base_name).replace('\\', '/')
+        extract_dir = os.path.join(self.master.extracted_images_dir, base_name).replace('\\', '/')
 
         if os.path.exists(extract_dir):
             shutil.rmtree(extract_dir)
@@ -273,7 +297,6 @@ class DataUploadView(ttk.Frame):
             self.append_status(f"{base_name}: Extracted {image_count} images in {int(seconds)} seconds")
         else:
             self.append_status(f"{base_name}: Extracted {image_count} images in {int(minutes)} minutes {int(seconds)} seconds")
-        
         self.append_status(f"{base_name}: Extracted to {extract_dir}")
         self.master.after(0, self._finish_extraction) 
 
@@ -308,7 +331,7 @@ class DataUploadView(ttk.Frame):
             return
         
         self.master.change_view('Gallery')
-        NUM_THREADS = os.cpu_count() or 4
+        NUM_THREADS = (os.cpu_count() // 2) or 4
       
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
         # Partition the image file indexes into the number of threads specified
@@ -372,8 +395,7 @@ class DataUploadView(ttk.Frame):
     def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
         print("started processing")
         processed_so_far = 0
-        candidate_folder = self.candidates_dir
-
+        candidate_folder = self.master.candidates_dir
         for folder_path in selected_folders:
             # Use the lazy loader here
             for batched_img_paths in self._batched_image_paths(folder_path, 10):
@@ -385,13 +407,23 @@ class DataUploadView(ttk.Frame):
                     if start_idx <= processed_so_far < end_idx:
                         accepted_images_dict = self.neural_network_filter([img_path], actions)
                         for img_path, features in accepted_images_dict.items():
-                            candidate_image_path = os.path.join(candidate_folder, os.path.basename(img_path))
+                            unique_id = uuid.uuid4()
+                            unique_path = f"{unique_id}_{os.path.basename(img_path)}"
+                            candidate_image_path = os.path.join(candidate_folder, unique_path)
                             shutil.copy(img_path, candidate_image_path)
-                            self.image_tag_mappings[candidate_image_path] = {'original_path': img_path, 'tags': features}
+                            with open(candidate_image_path, 'rb') as f:
+                                image_data = f.read()
+                                image = Image.open(BytesIO(image_data))
+                                # Update the master image dictionary via the MainWindow
+                                self.master.add_image_to_master_dict(
+                                    candidate_image_path,
+                                    features,  # Assuming 'features' contains tags
+                                    image,
+                                    candidate_folder
+                                )
                             update_data = {
                                 'type': 'update_gallery',
-                                'folder': candidate_folder,
-                                'image_data': {candidate_image_path: self.image_tag_mappings.get(candidate_image_path)}
+                                'image_path': candidate_image_path
                             }
                             self.ui_update_queue.put(update_data)
                     processed_so_far += 1
@@ -409,23 +441,29 @@ class DataUploadView(ttk.Frame):
         
     def stop_processing(self):
         self.cancellation_event.set() 
+        while True:
+            try:
+                self.ui_update_queue.get_nowait()
+            except queue.Empty:
+                break
         
     def listen_for_ui_updates(self):
         if self.cancellation_event.is_set():
-            return
-        try:
-            update_request = self.ui_update_queue.get_nowait()
-            self.process_ui_update(update_request)
-        except queue.Empty:
             pass
+        else:
+            try:
+                update_request = self.ui_update_queue.get_nowait()
+                self.process_ui_update(update_request)
+            except queue.Empty:
+                pass
         # Schedule the next check in 100ms
-        self.master.after(50, self.listen_for_ui_updates)
+        self.master.after(100, self.listen_for_ui_updates)
 
     def process_ui_update(self, update_request):
         if update_request['type'] == 'update_progress':
             self.master.views['Gallery'].update_progress(update_request['count'])
         elif update_request['type'] == 'update_gallery':
-            self.master.views['Gallery'].receive_data(update_request['folder'], update_request['image_data'])
+            self.master.views['Gallery'].receive_data(update_request['image_path'])
 
         self.master.views['Gallery'].update_idletasks() 
 
@@ -463,7 +501,6 @@ class DataUploadView(ttk.Frame):
             dominant_custom_emotion = sorted_emotions[0][0]
 
         return dominant_custom_emotion
-
     
     def age_within_selected_range(self, detected_age, selected_age_ranges):
         if "Infants (1 month to 1 year)" in selected_age_ranges and 1 <= detected_age < 12:
@@ -484,44 +521,49 @@ class DataUploadView(ttk.Frame):
         accepted_images = {}
         try:
             for image_path in image_paths:
-                analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
-                print(analysis)
-                self.processed_images_count += 1
-                update_request = {
-                    'type': 'update_progress',
-                    'count': self.processed_images_count
-                }
-                self.ui_update_queue.put(update_request)
+                if self.cancellation_event.is_set():
+                    pass
+                else:
+                    analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
+                    #print(analysis)]
+                    # future dev note
+                    # instead of using DeepFace to process images, attach a chat gpt api to the image and use the chat gpt api to process the image
+                    self.processed_images_count += 1
+                    update_request = {
+                        'type': 'update_progress',
+                        'count': self.processed_images_count
+                    }
+                    self.ui_update_queue.put(update_request)
 
-                # analyze the face data frum deepface
-                face_data = analysis[0]
-                features = {}
-                if actions.get('emotion'):
-                    emotion_scores = face_data['emotion']
-                    mapped_emotion = self.get_custom_emotion(emotion_scores)
-                    features['emotion'] = mapped_emotion.lower()
+                    # analyze the face data frum deepface
+                    face_data = analysis[0]
+                    features = {}
+                    if actions.get('emotion'):
+                        emotion_scores = face_data['emotion']
+                        mapped_emotion = self.get_custom_emotion(emotion_scores)
+                        features['emotion'] = mapped_emotion.lower()
 
-                if actions.get('gender'):
-                    features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
+                    if actions.get('gender'):
+                        features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
 
-                if actions.get('race'):
-                    features['race'] = face_data['dominant_race'].lower()
+                    if actions.get('race'):
+                        features['race'] = face_data['dominant_race'].lower()
 
-                if actions.get('age'):
-                    detected_age = face_data['age']
-                    age_is_acceptable = self.age_within_selected_range(detected_age, actions.get('age'))
-                    if age_is_acceptable:
-                        features['age'] = str(detected_age)
+                    if actions.get('age'):
+                        detected_age = face_data['age']
+                        age_is_acceptable = self.age_within_selected_range(detected_age, actions.get('age'))
+                        if age_is_acceptable:
+                            features['age'] = str(detected_age)
 
-                if (
-                    (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
-                    (not actions.get('age') or 'age' in features) and
-                    (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
-                    (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
-                ):
-                    accepted_images[image_path] = features
+                    if (
+                        (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
+                        (not actions.get('age') or 'age' in features) and
+                        (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
+                        (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
+                    ):
+                        accepted_images[image_path] = features
 
-            return accepted_images
+                return accepted_images
 
         except Exception as e:
             print(f"Error analyzing images. Error: {e}")

@@ -1,5 +1,6 @@
 import os
 from random import setstate
+import shutil
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk
@@ -8,11 +9,11 @@ from io import BytesIO
 class GalleryView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
-        self.initialized = True
-        self.candidate_images = {}
-        self.image_tag_mappings = {}
         self.image_positions = []
         self.row_heights = []
+        self.imageTk_objects = []
+        self.candidate_paths = []
+        self.sent_paths = []
         self.current_col = 0 # for keeping track of the image positions
         self.current_row = 0
         self.current_row_width = 0 
@@ -85,6 +86,7 @@ class GalleryView(ttk.Frame):
     Config UI
     '''  
     def set_progress_maximum(self, max_value):
+            self.stop_processing_button["state"] = tk.NORMAL    
             self.progress_bar["maximum"] = max_value
 
     def update_progress(self, value):
@@ -95,74 +97,71 @@ class GalleryView(ttk.Frame):
     Send Data to Manual Review
     '''     
     def send_to_review(self):
-        self.master.views['Manual Image Review'].load_candidate_images(self.candidate_images)
-        self.master.change_view('Manual Image Review')
+        pending_review_dir = self.master.pending_review_dir
+        candidate_paths = self.candidate_paths.copy() 
+        self.candidate_paths.clear()
+        candidate_images = {path: self.master.master_image_dict[path] for path in candidate_paths}
+        for image_path, image_data in candidate_images.items():
+            dest_path = os.path.join(pending_review_dir, os.path.basename(image_path))
+            shutil.copy2(image_path, dest_path)
+            image_data['working_directory'] = pending_review_dir
+            self.master.master_image_dict[dest_path] = image_data
+            del self.master.master_image_dict[image_path]
+            os.remove(image_path)
+        updated_image_paths = [path for path in self.master.master_image_dict
+                               if self.master.master_image_dict[path]['working_directory'] == pending_review_dir 
+                               and path not in self.sent_paths]
+        self.sent_paths.extend(updated_image_paths)
+        self.master.views['Manual'].receive_data(updated_image_paths)
+        self.master.change_view('Manual')
         self.clear_gallery()
-
-    
     '''
-    Cancel the processing
+    Cancel/pause/resume the processing
     '''   
     def stop_processing(self):
-        self.master.views['Data Upload & Image Selection'].stop_processing()
+        self.master.views['Upload'].stop_processing()
         self.set_progress_maximum(0)
         self.update_progress(0)
         self.stop_processing_button["state"] = tk.DISABLED
 
     def pause_processing(self):
-        self.master.views['Data Upload & Image Selection'].pause_processing()
+        self.master.views['Upload'].pause_processing()
         self.pause_processing_button.config(text="Resume Processing", command=self.resume_processing)
     
     def resume_processing(self):
-        self.master.views['Data Upload & Image Selection'].resume_processing()
+        self.master.views['Upload'].resume_processing()
         self.pause_processing_button.config(text="Pause Processing", command=self.pause_processing)
        
     '''
     Recieve and display data
-    
-    when loading images need to provide button to load more images
-    loading more images should load the next set of (100 % (# columns)) images
-    load in the first 100 images initially, then stop loading in images,
-    and wait for the user to click the load more button, then load in the next
-    (100 % (# columns)) images.
     '''   
-    
+    def receive_data(self, image_file_path):
+        # Check if more images can be loaded
+        if self.images_loaded < 100:
+            self.load_single_image(image_file_path)
+            self.images_loaded += 1
 
-    def receive_data(self, candidate_folder, image_tag_mapping):
-        self.candidate_folder = candidate_folder
-        self.image_tag_mappings = {**self.image_tag_mappings, **image_tag_mapping}
-    
-        image_paths = list(image_tag_mapping.keys())
-        load_count = 100 - self.images_loaded  # Number of images to load in this call
-
-        for image_path in image_paths[:load_count]:
-            features = image_tag_mapping.get(image_path, {}).get('tags', {})
-            if features:
-                self.load_single_image(image_path, features)
-                self.images_loaded += 1
-            if self.images_loaded >= 100:  # If initial set of images have been loaded
+            # Enable 'Load More' button if the initial set of images have been loaded
+            if self.images_loaded >= 100:
                 self.load_more_button["state"] = tk.NORMAL
 
+    def load_single_image(self, image_path):
+        self.candidate_paths.append(image_path)
+        # Retrieve image data from the master image dictionary
+        image_data = self.master.master_image_dict.get(image_path, {})
+        photo_object = image_data.get('photo_object')
+        tags = image_data.get('tags', {})
 
-    def load_single_image(self, image_path, features=None):
-        if image_path in self.candidate_images :  # Check if image is already loaded
-            return
-        try:
-            with open(image_path, 'rb') as f:
-                image_data = f.read()
-            image = Image.open(BytesIO(image_data))
-            target_width = self.master.views["Data Upload & Image Selection"].width_entry.get() 
-            target_width = int(target_width)
-            resized_image = self.resize_image_to_display_width(image, target_width)  
-            tags = features if features else self.image_tag_mappings.get(image_path, {}).get('tags', {})
-            formatted_tags = ({f"{v}" for _, v in tags.items()})
-            self.add_image_to_gallery(resized_image, tags, image_path)
-            print(f"Loaded {image_path} with tags: {formatted_tags}")
-        except Exception as e:
-            print(f"Error loading {image_path}. Reason: {e}")
+        # Resize the image to display width using the photo object
+        resized_image = self.resize_image(photo_object)
+        formatted_tags = ", ".join(tags.values()) if tags else ""
 
-    def resize_image_to_display_width(self, image, display_width):
-        # Resize image to fit the display width while maintaining its aspect ratio
+        # Add the resized image and tags to the gallery
+        self.add_image_to_gallery(resized_image, formatted_tags)
+
+    def resize_image(self, image):
+        display_width = self.master.views["Upload"].width_entry.get() 
+        display_width = int(display_width)
         original_width, original_height = image.size
         aspect_ratio = original_width / original_height
         new_width = display_width
@@ -170,15 +169,12 @@ class GalleryView(ttk.Frame):
         image = image.resize((new_width, new_height))
         return image
 
-    def add_image_to_gallery(self, image, tags, image_path):
+    def add_image_to_gallery(self, image, formatted_tags):
         try:
             photo = ImageTk.PhotoImage(image)
-            self.candidate_images[image_path] = {
-                'photo': photo,
-                'tags': tags
-            }
+            self.imageTk_objects.append(photo)
             # Calculate image's contribution to row width (including padding)
-            image_width_with_padding = photo.width() + 10 
+            image_width_with_padding = photo.width() + 20 
             
             # Check if adding this image would exceed the max frame width
             if self.current_row_width + image_width_with_padding > self.canvas.winfo_width():
@@ -190,12 +186,10 @@ class GalleryView(ttk.Frame):
             img_label = ttk.Label(self.frame_images, image=photo)
             img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)  
             img_label.bind("<MouseWheel>", self._on_mousewheel)
-            print(tags)
             
             # Add tags as a label to the image
-            if tags:
-                tag_text = ", ".join(tags.values())
-                tag_label = ttk.Label(self.frame_images, text=tag_text, background='#eff0f1', anchor='e')
+            if formatted_tags:
+                tag_label = ttk.Label(self.frame_images, text=formatted_tags, background='#eff0f1', anchor='e')
                 tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
                 tag_label.bind("<MouseWheel>", self._on_mousewheel)
 
@@ -230,23 +224,12 @@ class GalleryView(ttk.Frame):
         """Clears all images from the gallery view."""
         for widget in self.frame_images.winfo_children():
             widget.destroy()
-
-        # Reset attributes to their initial states
-        self.candidate_images = {}
-        self.image_tag_mappings = {}
-        self.image_positions = []
-        self.row_heights = []
+        self.imageTk_objects.clear()
+        self.image_positions.clear()
+        self.row_heights.clear()
         self.current_row_width = 0
         self.current_col = 0
         self.current_row = 0
         self.images_loaded = 0
         self.load_more_button["state"] = tk.DISABLED
-        candidates_dir = self.master.views["Data Upload & Image Selection"].candidates_dir
-        for filename in os.listdir(candidates_dir):
-            file_path = os.path.join(candidates_dir, filename)
-            try:
-                if os.path.isfile(file_path):
-                    os.unlink(file_path)
-            except Exception as e:
-                print(f"Failed to delete {file_path}. Reason: {e}")
 

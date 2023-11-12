@@ -3,16 +3,15 @@ import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 import os
-from zipfile import ZipFile
+import json
+import zipfile
 
 class ExportOptionView(ttk.Frame):
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
         self.image_count_var = tk.StringVar()
-        self.new_images = []
-        self.create_widgets()
-        self.sample_tags = ["happy", "sad", "angry"]
         self.tagged_images = {}
+        self.create_widgets()
         
         
     def create_widgets(self):
@@ -83,11 +82,11 @@ class ExportOptionView(ttk.Frame):
         #self.trash_button.grid(row=4, column=1, padx=(5,0), sticky="w")
     
     def receive_images(self, images):
-        self.new_images = images
+        self.tagged_images.update(images)
         self.update_image_count() 
 
     def update_image_count(self):
-        count = len(self.new_images)
+        count = len(self.tagged_images)
         self.image_count_var.set(f"Count of Incoming Images: {count}")
         
     def toggle_commit_trash_buttons(self):
@@ -99,19 +98,8 @@ class ExportOptionView(ttk.Frame):
         self.trash_button.grid(row=4, column=1, sticky="se")
         
     def export_dataset(self):    
-        for image in self.new_images:
-            tag = random.choice(self.sample_tags)
-        
-            if tag not in self.tagged_images:
-                self.tagged_images[tag] = []
-        
-            self.tagged_images[tag].append(image)
         file_formats = [
-            ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2 *.json *.xml *.csv *.npy *.npz *.hdf5'),
-            ('ZIP files', '*.zip'),
-            ('TAR files', '*.tar'),
-            ('TAR.GZ files', '*.tar.gz'),
-            ('TAR.BZ2 files', '*.tar.bz2'),
+            ('All Supported Types', '*.json *.xml *.csv *.npy *.npz *.hdf5'),
             ('JSON files', '*.json'),
             ('XML files', '*.xml'),
             ('CSV files', '*.csv'),
@@ -123,16 +111,14 @@ class ExportOptionView(ttk.Frame):
                                                  filetypes=file_formats,
                                                  title="Export As")
         
-        if not file_path:
-            return  # User canceled save
+        if file_path:
+            if not os.path.exists(file_path):
+                os.makedirs(file_path)
+            else:
+                return  # User canceled save
         
         ext = os.path.splitext(file_path)[-1].lower()
-
-        if ext == ".zip":
-            self.export_zip(file_path, self.tagged_images)
-        elif ext in [".tar", ".tar.gz", ".tar.bz2"]:
-            self.export_tar(file_path, self.tagged_images, ext)
-        elif ext == ".json":
+        if ext == ".json":
             self.export_json(file_path, self.tagged_images)
         elif ext == ".xml":
             self.export_xml(file_path, self.tagged_images)
@@ -145,19 +131,35 @@ class ExportOptionView(ttk.Frame):
         else:
             print("Unsupported file format")  # Handle this case in your UI
 
-    def export_zip(self, file_path, tagged_images):
-        with ZipFile(file_path, 'w') as zf:
-            for tag, images in tagged_images.items():
-                for image in images:
-                    zf.write(image, os.path.join(tag, image)) 
+    def export_json(self, export_directory, tagged_images):
+        accepted_images_directory = self.master.views["Manual"].accepted_images_directory
 
-    def export_tar(self, file_path, tagged_images, ext):
-        print(f"Exporting as TAR ({ext}) to {file_path}")
-        # Your TAR export logic here
+        # Ensure the provided export_directory is not just a file path
+        if os.path.isfile(export_directory):
+            export_directory = os.path.dirname(export_directory)
 
-    def export_json(self, file_path, tagged_images):
-        print(f"Exporting as JSON to {file_path}")
-        # Your JSON export logic here
+        json_file_path = os.path.join(export_directory, 'exported_data.json')
+
+        # Serialization of JSON data
+        with open(json_file_path, 'w', encoding='utf-8') as json_file:
+            json.dump(tagged_images, json_file, ensure_ascii=False, indent=4)
+
+        zip_file_path = os.path.join(export_directory, 'dataset.zip')
+        with zipfile.ZipFile(zip_file_path, 'w') as zipf:
+            # Add the JSON file
+            zipf.write(json_file_path, os.path.basename(json_file_path))
+            
+            # Add image files from the AcceptedImages directory
+            for file_path in os.listdir(accepted_images_directory):
+                full_path = os.path.join(accepted_images_directory, file_path)
+                zipf.write(full_path, os.path.relpath(full_path, start=export_directory))
+
+                # Optionally remove the image after exporting
+                os.remove(full_path)
+        
+        print("Export and archiving of accepted images completed successfully.")
+
+    print("Export and archiving completed successfully.")
 
     def export_xml(self, file_path, tagged_images):
         print(f"Exporting as XML to {file_path}")
