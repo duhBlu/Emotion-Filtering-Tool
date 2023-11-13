@@ -1,4 +1,5 @@
 import random
+import shutil
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
@@ -10,7 +11,7 @@ class ExportOptionView(ttk.Frame):
     def __init__(self, parent, **kwargs):
         super().__init__(parent, **kwargs)
         self.image_count_var = tk.StringVar()
-        self.tagged_images = {}
+        self.paths_pending_export = []
         self.create_widgets()
         
         
@@ -81,12 +82,12 @@ class ExportOptionView(ttk.Frame):
         self.trash_button = ttk.Button(self.right_frame, text="Trash")
         #self.trash_button.grid(row=4, column=1, padx=(5,0), sticky="w")
     
-    def receive_images(self, images):
-        self.tagged_images.update(images)
+    def receive_images(self, image_paths):
+        self.paths_pending_export.extend(image_paths)
         self.update_image_count() 
 
     def update_image_count(self):
-        count = len(self.tagged_images)
+        count = len(self.paths_pending_export)
         self.image_count_var.set(f"Count of Incoming Images: {count}")
         
     def toggle_commit_trash_buttons(self):
@@ -106,60 +107,82 @@ class ExportOptionView(ttk.Frame):
             ('Numpy files', '*.npy *.npz'),
             ('HDF5 files', '*.hdf5')
         ]
-
-        file_path = filedialog.asksaveasfilename(defaultextension=".zip",
+        export_path = filedialog.asksaveasfilename(defaultextension=".json",
                                                  filetypes=file_formats,
                                                  title="Export As")
-        
-        if file_path:
-            if not os.path.exists(file_path):
-                os.makedirs(file_path)
-            else:
-                return  # User canceled save
-        
-        ext = os.path.splitext(file_path)[-1].lower()
+        if export_path:
+            ext = os.path.splitext(export_path)[-1].lower()
+            export_dir = os.path.dirname(export_path)
+            file_name = os.path.basename(export_path)
+        else:
+            return
+       
+        # json only works for now, but just as sample functionality, we should allow exporting to something else
         if ext == ".json":
-            self.export_json(file_path, self.tagged_images)
+            self.export_json(export_dir, file_name)
         elif ext == ".xml":
-            self.export_xml(file_path, self.tagged_images)
+            self.export_xml(export_dir, file_name)
         elif ext == ".csv":
-            self.export_csv(file_path, self.tagged_images)
+            self.export_csv(export_dir, file_name)
         elif ext in [".npy", ".npz"]:
-            self.export_numpy(file_path, self.tagged_images, ext)
+            self.export_numpy(export_dir, file_name)
         elif ext == ".hdf5":
-            self.export_hdf5(file_path, self.tagged_images)
+            self.export_hdf5(export_dir, file_name)
         else:
             print("Unsupported file format")  # Handle this case in your UI
 
-    def export_json(self, export_directory, tagged_images):
-        accepted_images_directory = self.master.views["Manual"].accepted_images_directory
+    def export_json(self, export_dir, file_name):
+        # Create an 'images' subdirectory within the export directory
+        images_dir = os.path.join(export_dir, 'images')
+        if not os.path.exists(images_dir):
+            os.makedirs(images_dir)
 
-        # Ensure the provided export_directory is not just a file path
-        if os.path.isfile(export_directory):
-            export_directory = os.path.dirname(export_directory)
-
-        json_file_path = os.path.join(export_directory, 'exported_data.json')
-
+        # Build the export data dictionary
+        export_data = {}
+        for path in self.paths_pending_export:
+            # Get the filename and create a relative path within the 'images' directory
+            filename = os.path.basename(path)
+            relative_path = os.path.join('images', filename)
+            image_info = self.master.master_image_dict[path]
+        
+            # Add the image file to the 'images' directory
+            shutil.copy(path, os.path.join(images_dir, filename))
+        
+            # Use the relative path for the image in the JSON data
+            export_data[relative_path] = {
+                'tags': image_info.get('tags', {}),
+                # Include other relevant metadata as needed
+            }
+    
         # Serialization of JSON data
+        json_file_path = os.path.join(export_dir, file_name)
         with open(json_file_path, 'w', encoding='utf-8') as json_file:
-            json.dump(tagged_images, json_file, ensure_ascii=False, indent=4)
+            json.dump(export_data, json_file, ensure_ascii=False, indent=4)
 
-        zip_file_path = os.path.join(export_directory, 'dataset.zip')
+        # Create a zip file that includes the JSON file and the 'images' directory
+        zip_file_path = os.path.join(export_dir, 'dataset.zip')
         with zipfile.ZipFile(zip_file_path, 'w') as zipf:
             # Add the JSON file
             zipf.write(json_file_path, os.path.basename(json_file_path))
-            
-            # Add image files from the AcceptedImages directory
-            for file_path in os.listdir(accepted_images_directory):
-                full_path = os.path.join(accepted_images_directory, file_path)
-                zipf.write(full_path, os.path.relpath(full_path, start=export_directory))
-
-                # Optionally remove the image after exporting
-                os.remove(full_path)
         
-        print("Export and archiving of accepted images completed successfully.")
+            # Add all files from the 'images' directory
+            for root, _, files in os.walk(images_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    zipf.write(file_path, os.path.relpath(file_path, start=export_dir))
+        
+        # Optionally, clear the export data and image files now that they have been zipped
+        shutil.rmtree(images_dir)
+        os.remove(json_file_path)
 
-    print("Export and archiving completed successfully.")
+        # Clear the paths from pending export and remove them from the master_image_dict
+        for path in self.paths_pending_export:
+            del self.master.master_image_dict[path]
+        self.paths_pending_export.clear()
+
+        print(f"Exported data to {zip_file_path} successfully.")
+
+
 
     def export_xml(self, file_path, tagged_images):
         print(f"Exporting as XML to {file_path}")

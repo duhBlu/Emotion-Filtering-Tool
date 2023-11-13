@@ -14,7 +14,7 @@ class AugmentationView(ttk.Frame):
         self.grid_columnconfigure(1, weight=0)
         self.current_row = 0
         self.current_col = 0
-        self.pending_export_image_paths = []
+        self.paths_pending_export = []
         self.imageTk_objects = []
         self.aug_imageTk_objects = []
         self.current_row_width = 0
@@ -59,12 +59,12 @@ class AugmentationView(ttk.Frame):
     Send Images to Data Export View
     '''
     def save_augmented_images(self):
-        export_data = {}
-        for file_path, data in self.photo_images.items():
-            export_data[file_path] = data['tags']
-        self.master.views['Export'].receive_images(export_data)
-        self.clear_images()
+        self.master.views['Export'].receive_images(self.paths_pending_export)
+        # Clear the current image paths since they're now being handled by the Export view
+        self.paths_pending_export.clear()
+        # Switch to the Export view
         self.master.change_view('Export')
+
     
     def clear_images(self):
         for widget in self.frame_images.winfo_children():
@@ -82,10 +82,10 @@ class AugmentationView(ttk.Frame):
     Load and Display Images
     '''    
     def receive_data(self, image_paths):
-        existing_paths_set = set(self.pending_export_image_paths)
+        existing_paths_set = set(self.paths_pending_export)
         new_paths = [item for item in image_paths if item not in existing_paths_set]
-        self.pending_export_image_paths.extend(new_paths)
-        self.total_images = len(self.pending_export_image_paths)  # Store the initial total number of images
+        self.paths_pending_export.extend(new_paths)
+        self.total_images = len(self.paths_pending_export)  # Store the initial total number of images
         self.show_images(new_paths)
 
     
@@ -139,7 +139,7 @@ class AugmentationView(ttk.Frame):
         check_var = tk.IntVar()
         img_label = ttk.Label(self.frame_images, image=photo)
         img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
-        self.image_labels[self.pending_export_image_paths[idx]] = img_label
+        self.image_labels[self.paths_pending_export[idx]] = img_label
         img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
         img_label.bind("<MouseWheel>", self._on_mousewheel)
 
@@ -178,7 +178,7 @@ class AugmentationView(ttk.Frame):
         selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
         total_images = len(selected_indices)
         self.selected_indices_queue = selected_indices
-        self.selected_image_paths = [self.pending_export_image_paths[idx] for idx in selected_indices]
+        self.selected_image_paths = [self.paths_pending_export[idx] for idx in selected_indices]
         self.current_image_path = None
         
         if not self.selected_image_paths:
