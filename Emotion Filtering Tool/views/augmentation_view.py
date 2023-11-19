@@ -64,7 +64,6 @@ class AugmentationView(ttk.Frame):
         self.paths_pending_export.clear()
         # Switch to the Export view
         self.master.change_view('Export')
-
     
     def clear_images(self):
         for widget in self.frame_images.winfo_children():
@@ -187,6 +186,9 @@ class AugmentationView(ttk.Frame):
         
         self.augment_window = tk.Toplevel(self)
         self.augment_window.title("Augmentation")
+        self.augment_window.transient(self)  # Set to be a transient window of the main app window
+        self.augment_window.grab_set()  # Prevent interaction with the main app window
+        self.augment_window.focus_set() 
         
         # Set column weights (relative widths)
         # Set column and row weights for augment_window
@@ -256,9 +258,13 @@ class AugmentationView(ttk.Frame):
             # Perform the flip operation
             flipped_image = pil_image.transpose(Image.FLIP_LEFT_RIGHT)
             flipped_image = self.resize_image(flipped_image)
+
             # Update the temporary storage with the flipped image
             self.modified_images[self.current_image_path] = flipped_image
-            
+
+            # Update the master image dictionary with the modified image
+            self.master.master_image_dict[self.current_image_path]['photo_object'] = flipped_image
+
             # Create a new PhotoImage and update the label
             tk_flipped_image = ImageTk.PhotoImage(flipped_image)
             self.img_label.config(image=tk_flipped_image)
@@ -268,7 +274,6 @@ class AugmentationView(ttk.Frame):
             self.changed_images.add(self.current_image_path)
             self.update_buttons()
 
-            
     def update_buttons(self):
         # Use self.current_image_path to check if the image has been changed
         if self.current_image_path in self.changed_images:
@@ -301,10 +306,11 @@ class AugmentationView(ttk.Frame):
             # Remove the path from modified images since changes are accepted
             del self.modified_images[self.current_image_path]
             self.changed_images.discard(self.current_image_path)
+            
+            self.update_ui_after_change()
 
             # Move to the next image and update the UI
             self.show_next_image(increment=True, accepted=True)
-            self.update_ui_after_change()
 
 
     def skip_image(self):     
@@ -333,19 +339,18 @@ class AugmentationView(ttk.Frame):
             self.changed_images.discard(self.current_image_path)  # Also remove from changed images
 
         # Determine the next image to display
-        if increment and self.selected_image_paths:
-            current_idx = self.selected_image_paths.index(self.current_image_path) if self.current_image_path in self.selected_image_paths else -1
-            next_idx = current_idx + 1 if current_idx + 1 < len(self.selected_image_paths) else 0
+        if increment:
+            # Increment the current image index
+            self.current_image_idx += 1
 
-            # Update current_image_path to the next image path if available
-            if next_idx < len(self.selected_image_paths):
-                self.current_image_path = self.selected_image_paths[next_idx]
+            if self.current_image_idx < len(self.selected_image_paths):
+                self.current_image_path = self.selected_image_paths[self.current_image_idx]
             else:
-                self.current_image_path = None  # No more images to display
-                self.augment_window.destroy()  # Close the window if we're done
-                return  # Exit the function
+                # No more images to display, close the window
+                self.augment_window.destroy()
+                return
 
-        # If there's a next image, display it
+        # Display the next image
         if self.current_image_path:
             image_data = self.master.master_image_dict.get(self.current_image_path)
             pil_image = image_data.get('photo_object')
@@ -354,6 +359,13 @@ class AugmentationView(ttk.Frame):
 
             self.img_label.config(image=tk_image)
             self.img_label.image = tk_image  # Keep a reference
+
+            # Update UI elements
+            self.update_ui_after_change()
+        else:
+            # Close the window if there's no next image
+            self.augment_window.destroy()
+
 
             
 

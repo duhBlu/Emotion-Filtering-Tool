@@ -309,7 +309,6 @@ class ManualReviewView(ttk.Frame):
                     dest_path = os.path.join(self.master.accepted_images_dir, os.path.basename(image_path))
                     shutil.copy2(image_path, dest_path)
                     image_data['working_directory'] = self.master.accepted_images_dir
-                    pprint(image_data)
                     self.master.master_image_dict[dest_path] = image_data
                     del self.master.master_image_dict[image_path]
                     os.remove(image_path)

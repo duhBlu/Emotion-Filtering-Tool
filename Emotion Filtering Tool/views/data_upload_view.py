@@ -14,6 +14,8 @@ from deepface import DeepFace
 import queue
 import time
 
+import h5py
+
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -206,15 +208,10 @@ class DataUploadView(ttk.Frame):
     '''
     def upload_dataset(self):
         file_paths = filedialog.askopenfilenames(filetypes=[
-            ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2'),
+            ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2 *.hdf5'),
             ('ZIP files', '*.zip'),
             ('TAR files', '*.tar *.tar.gz *.tar.bz2'),
-            #('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2 *.json *.xml *.csv *.npy *.npz *.hdf5'),
-            # ('JSON files', '*.json'),
-            # ('XML files', '*.xml'),
-            # ('CSV files', '*.csv'),
-            # ('Numpy files', '*.npy *.npz'),
-            # ('HDF5 files', '*.hdf5'),
+            ('HDF5 files', '*.hdf5')
         ])
         if file_paths:
             self.process_button['text'] = "Loading..."
@@ -231,21 +228,22 @@ class DataUploadView(ttk.Frame):
                     ext = os.path.splitext(file_path)[-1].lower()
  
                 if ext in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
-                    self.append_status(f"{basename.replace(ext, '')}: Starting Extraction")
                     self.extract_archive(file_path, ext)
+                elif ext == '.hdf5':
+                    self.extract_hdf5(file_path)
     
     '''
     EXTRACT ARCHIVES
-        Accepts .zip, .tar, .tar.gz, .tar.bz2
+        Accepts .zip, .tar, .tar.gz, .tar.bz2, hdf5
     '''
     def extract_archive(self, archive_path, ext):
         #ext = os.path.splitext(archive_path)[1]
         if ext == '.gz' or ext == '.bz2':  # Handle tar.gz and tar.bz2
             ext = '.'.join(os.path.basename(archive_path).split('.')[-2:])
         self.start_time = time.time()
-        threading.Thread(target=self._threaded_extraction, args=(archive_path, ext), daemon=True).start()
+        threading.Thread(target=self._threaded_archive_extraction, args=(archive_path, ext), daemon=True).start()
 
-    def _threaded_extraction(self, archive_path, ext):
+    def _threaded_archive_extraction(self, archive_path, ext):
         base_name = os.path.basename(archive_path).replace(ext, '')
         extract_dir = os.path.join(self.master.extracted_images_dir, base_name).replace('\\', '/')
 
@@ -298,9 +296,30 @@ class DataUploadView(ttk.Frame):
         else:
             self.append_status(f"{base_name}: Extracted {image_count} images in {int(minutes)} minutes {int(seconds)} seconds")
         self.append_status(f"{base_name}: Extracted to {extract_dir}")
-        self.master.after(0, self._finish_extraction) 
+        self.master.after(0, self._finish_upload) 
 
-    def _finish_extraction(self):
+    def extract_hdf5(self, hdf5_path):
+        base_name = os.path.basename(hdf5_path).replace('.hdf5', '')
+        extract_dir = os.path.join(self.master.extracted_images_dir, base_name).replace('\\', '/')
+
+        if os.path.exists(extract_dir):
+            shutil.rmtree(extract_dir)
+        os.mkdir(extract_dir)
+
+        with h5py.File(hdf5_path, 'r') as hdf5_file:
+            image_count = 0
+            for dataset_name in hdf5_file:
+                image_data = hdf5_file[dataset_name][...]
+                image_path = os.path.join(extract_dir, f"{dataset_name}.png")  # or appropriate format
+                Image.fromarray(image_data).save(image_path)
+                image_count += 1
+
+        self.dataset_image_counts[extract_dir] = image_count
+        entry_text = f"{base_name} \t({image_count})"
+        self.dataset_filenames_listbox.insert(tk.END, entry_text)
+        self.master.after(0, self._finish_upload) 
+        
+    def _finish_upload(self):
         self.process_button['text'] = "Process"
         self.process_button['state'] = tk.NORMAL    
         
