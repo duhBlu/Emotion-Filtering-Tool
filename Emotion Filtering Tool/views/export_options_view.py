@@ -40,8 +40,8 @@ class ExportOptionView(ttk.Frame):
         self.toggle_frame.grid_columnconfigure(0, weight=1)
         self.toggle_frame.grid_rowconfigure(0, weight=1)
         
-        self.revert_button = ttk.Button(self.left_frame, text="Revert Changes")
-        self.revert_button.grid(row=1, column=0, padx=(0, 10), pady=(0, 10), sticky="sw")
+        self.revert_button = ttk.Button(self.left_frame, text="Revert Changes", state='disabled')
+        self.revert_button.grid(row=1, column=0, padx=(10, 10), pady=(0, 10), sticky="sw")
         
         self.export_button = ttk.Button(self.left_frame, text="Export", command=self.export_dataset)
         self.export_button.grid(row=1, column=0, padx=(0, 10), pady=(0, 10), sticky="se")
@@ -59,10 +59,10 @@ class ExportOptionView(ttk.Frame):
         self.right_frame.grid_columnconfigure(0, weight=1)
         self.right_frame.grid_columnconfigure(1, weight=1)
         
-        self.add_dataset_button = ttk.Button(self.right_frame, text="Add Dataset")
+        self.add_dataset_button = ttk.Button(self.right_frame, text="Add Dataset", state='disabled')
         self.add_dataset_button.grid(row=0, column=0, columnspan=2, pady=(10, 5), sticky="n")
         
-        self.show_history_button = ttk.Button(self.right_frame, text="Show History")
+        self.show_history_button = ttk.Button(self.right_frame, text="Show History", state='disabled')
         self.show_history_button.grid(row=1, column=0, columnspan=2, pady=5, sticky="s")
         
         self.toggle_panel = tk.Frame(self.right_frame, bg=bg2)
@@ -74,13 +74,13 @@ class ExportOptionView(ttk.Frame):
         self.label_count.grid(row=4, column=0, padx=(0, 5), sticky="e")
         self.update_image_count()
         
-        self.get_changes_button = ttk.Button(self.right_frame, text="Get Changes")
+        self.get_changes_button = ttk.Button(self.right_frame, text="Get Changes", state='disabled')
         self.get_changes_button.grid(row=4, column=1, padx=(5,0), sticky="w")
         
-        self.commit_button = ttk.Button(self.right_frame, text="Commit")
+        self.commit_button = ttk.Button(self.right_frame, text="Commit", state='disabled')
         #self.commit_button.grid(row=4, column=0, padx=(5,0), sticky="e")        
 
-        self.trash_button = ttk.Button(self.right_frame, text="Trash")
+        self.trash_button = ttk.Button(self.right_frame, text="Trash", state='disabled')
         #self.trash_button.grid(row=4, column=1, padx=(5,0), sticky="w")
     
     def receive_images(self, image_paths):

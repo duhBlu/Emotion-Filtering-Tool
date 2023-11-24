@@ -1,8 +1,9 @@
+from cgitb import text
 from pprint import pprint
 import tkinter as tk
 from tkinter import PhotoImage, ttk
 from collections import defaultdict
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw, ImageFont
 import tkinter.messagebox as mb
 import os
 import shutil
@@ -102,26 +103,41 @@ class ManualReviewView(ttk.Frame):
         self.accept_image_resized = ImageTk.PhotoImage(accept_image_resized)
         self.reject_image_resized = ImageTk.PhotoImage(reject_image_resized)
 
-        # Setting up style for the accept button on hover
-        self.accept_button = tk.Button(self, image=self.accept_image_resized, bg='green', borderwidth=0, command=self.accept_images)
+        # Create images with overlay and text
+        self.accept_image_with_text = ImageTk.PhotoImage(self.add_overlay_and_text(accept_image_resized, "Accept"))
+        self.reject_image_with_text = ImageTk.PhotoImage(self.add_overlay_and_text(reject_image_resized, "Reject"))
+
+        # Setting up buttons with the default images (with text)
+        self.accept_button = tk.Button(self, image=self.accept_image_with_text, text="Accept", compound="center", bg='#79c77a', borderwidth=0, command=self.accept_images)
         self.accept_button.grid(row=2, column=0, padx=5, pady=10, sticky="se")
         self.accept_button.bind("<Enter>", self.on_enter)
         self.accept_button.bind("<Leave>", self.on_leave)
-        
-        self.reject_button = tk.Button(self, image=self.reject_image_resized, bg='red', borderwidth=0, command=self.reject_images)
+
+        self.reject_button = tk.Button(self, image=self.reject_image_with_text, text="Reject", compound="center", bg='#c4455a', borderwidth=0, command=self.reject_images)
         self.reject_button.grid(row=2, column=1, padx=5, pady=10, sticky="sw")
-        self.accept_button.bind("<Enter>", self.on_enter)
-        self.accept_button.bind("<Leave>", self.on_leave)
+        self.reject_button.bind("<Enter>", self.on_enter)
+        self.reject_button.bind("<Leave>", self.on_leave)
         
         update_tags_button = ttk.Button(self, text="Update Tags", command=self.update_tags)
         update_tags_button.grid(row=2, column=0, padx=(320, 0), pady=(0,35), sticky='sw')
     
     def on_enter(self, event):
-        pass
-            
+        if event.widget == self.accept_button:
+            event.widget.config(image=self.accept_image_resized, text="",  bg='green')
+        elif event.widget == self.reject_button:
+            event.widget.config(image=self.reject_image_resized, text="",  bg='red')
+
     def on_leave(self, event):
-        pass
-        
+        if event.widget == self.accept_button:
+            event.widget.config(image=self.accept_image_with_text, text="Accept", compound="center", bg='#79c77a')
+        elif event.widget == self.reject_button:
+            event.widget.config(image=self.reject_image_with_text, text="Reject", compound="center", bg='#c4455a')
+
+    def add_overlay_and_text(self, image, text):
+        # Create an overlay with transparency
+        overlay = Image.new('RGBA', image.size, (255, 255, 255, 220))
+        return Image.alpha_composite(image.convert('RGBA'), overlay)
+
     def on_frame_configure(self, event=None):
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
