@@ -1,6 +1,6 @@
 from pprint import pprint
 import tkinter as tk
-from tkinter import ttk
+from tkinter import PhotoImage, ttk
 from collections import defaultdict
 from PIL import Image, ImageTk
 import tkinter.messagebox as mb
@@ -27,7 +27,6 @@ class ManualReviewView(ttk.Frame):
         self.grid_columnconfigure(2, weight=0) 
         self.create_widgets()
 
-        
     '''
     Initialize UI
     '''
@@ -91,15 +90,26 @@ class ManualReviewView(ttk.Frame):
         self.gender_combobox.set('<None>')
         self.race_combobox.set('<None>')
         
+        accept_image_path = 'Resources/Icons/Accept background.png'
+        reject_image_path = 'Resources/Icons/Reject background.png'
         
+        accept_image = Image.open(accept_image_path)
+        reject_image = Image.open(reject_image_path)
+
+        accept_image_resized = self.resize_image(accept_image, 100, 100)
+        reject_image_resized = self.resize_image(reject_image, 100, 100)
+       
+        self.accept_image_resized = ImageTk.PhotoImage(accept_image_resized)
+        self.reject_image_resized = ImageTk.PhotoImage(reject_image_resized)
+
         # Setting up style for the accept button on hover
-        self.accept_button = ttk.Button(self, text="Accept Selected", command=self.accept_images)
-        self.accept_button.grid(row=2, column=0, padx=5, pady=10, ipadx=30, ipady=30, sticky="se")
+        self.accept_button = tk.Button(self, image=self.accept_image_resized, bg='green', borderwidth=0, command=self.accept_images)
+        self.accept_button.grid(row=2, column=0, padx=5, pady=10, sticky="se")
         self.accept_button.bind("<Enter>", self.on_enter)
         self.accept_button.bind("<Leave>", self.on_leave)
         
-        self.reject_button = ttk.Button(self, text="Reject Selected", command=self.reject_images)
-        self.reject_button.grid(row=2, column=1, padx=5, pady=10, ipadx=30, ipady=30, sticky="sw")
+        self.reject_button = tk.Button(self, image=self.reject_image_resized, bg='red', borderwidth=0, command=self.reject_images)
+        self.reject_button.grid(row=2, column=1, padx=5, pady=10, sticky="sw")
         self.accept_button.bind("<Enter>", self.on_enter)
         self.accept_button.bind("<Leave>", self.on_leave)
         
@@ -211,8 +221,9 @@ class ManualReviewView(ttk.Frame):
             self.pending_image_paths.append(image_path)
         self.show_images(image_paths, False)
     
-
     def show_images(self, image_paths, clear): 
+        image_width = self.master.views["Upload"].width_entry.get() 
+        image_width = int(image_width)
         if clear:
             self.clear_review()
         for idx, image_path in enumerate(image_paths):
@@ -221,21 +232,28 @@ class ManualReviewView(ttk.Frame):
             tags = image_data.get('tags', {})
 
             # Resize the image to display width using the photo object
-            resized_image = self.resize_image(photo_object)
+            resized_image = self.resize_image(photo_object, image_width)
             formatted_tags = ", ".join(tags.values()) if tags else ""
             
             self.add_image_to_review(idx, resized_image, formatted_tags)
 
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         
-    def resize_image(self, image):
-        display_width = self.master.views["Upload"].width_entry.get() 
-        display_width = int(display_width)
+    def resize_image(self, image, image_width, max_height=None):
         original_width, original_height = image.size
-        aspect_ratio = original_width / original_height
-        new_width = display_width
-        new_height = int(new_width / aspect_ratio)
-        image = image.resize((new_width, new_height))
+        aspect_ratio = original_height / original_width
+
+        # Calculate the new width and height based on the aspect ratio
+        new_width = image_width
+        new_height = int(image_width * aspect_ratio)
+
+        # If max_height is provided, ensure the new height does not exceed it
+        if max_height is not None and new_height > max_height:
+            new_height = max_height
+            new_width = int(max_height / aspect_ratio)
+
+        # Resize and return the image
+        image = image.resize((new_width, new_height), Image.LANCZOS)
         return image
     
     def add_image_to_review(self, idx, image, tags):
@@ -289,7 +307,11 @@ class ManualReviewView(ttk.Frame):
 
     def reject_images(self):
         self.process_selected_images(accept=False)
-
+        
+    # DEV NOTE
+    # This method calls show images on all of the pending images, which causes the system to reload, resize, and display all of the unselected images again.
+    # We are currently storing a reference to the photo object in this class, so we could just remove the images/labels from the grid and then update their index in the grid. 
+    # This is similar to how we are updating the labels/tags on the images. It just updates the actual label reference instead of the whole grid of images
     def process_selected_images(self, accept=True):
         # Create a list of selected indices to process
         selected_indices = [idx for idx, selected in self.selected_images.items() if selected]

@@ -55,8 +55,6 @@ class MainWindow(tk.Frame):
             if(btn_text == 'Upload'):
                 btn.config(bg="#e5e5e5", fg="#363636")
             btn.grid(row=idx, column=0, sticky='nsew')
-            btn.bind("<Enter>", self.on_enter)
-            btn.bind("<Leave>", self.on_leave)
             self.buttons[btn_text] = btn  # Store the button reference
             
 
@@ -69,14 +67,7 @@ class MainWindow(tk.Frame):
             view.lower(buffer) 
             
         self.change_view('Upload')
-        
-    def on_enter(self, event):
-        event.widget.config(bg='#c85961')
-
-    def on_leave(self, event):
-        event.widget.config(bg='#bfbfbf')
-
-            
+          
     def change_view(self, view_name):
         if view_name in self.views:
             for name, view in self.views.items():

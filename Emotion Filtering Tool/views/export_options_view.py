@@ -16,7 +16,6 @@ class ExportOptionView(ttk.Frame):
         self.paths_pending_export = []
         self.create_widgets()
         
-        
     def create_widgets(self):
         # Overall Grid Configuration
         self.grid_columnconfigure(0, weight=4)
@@ -119,7 +118,7 @@ class ExportOptionView(ttk.Frame):
         if ext == ".hdf5":
             self.export_hdf5(export_dir, file_name)
         else:
-            print("Unsupported file format")  # Handle this case in your UI
+            print("Unsupported file format")
 
     def export_hdf5(self, export_dir, file_name):
         hdf5_path = os.path.join(export_dir, file_name)
@@ -142,6 +141,7 @@ class ExportOptionView(ttk.Frame):
                 # Store metadata
                 for tag, value in tags.items():
                     image_dataset.attrs[tag] = value
+            print("FLSKDJHFL:SKDHFKL")
 
         print(f"Exported data to {hdf5_path} successfully.")
 

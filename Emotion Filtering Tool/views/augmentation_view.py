@@ -87,7 +87,6 @@ class AugmentationView(ttk.Frame):
         self.total_images = len(self.paths_pending_export)  # Store the initial total number of images
         self.show_images(new_paths)
 
-    
     def show_images(self, image_paths):
         for idx, image_path in enumerate(image_paths):
             image_data = self.master.master_image_dict.get(image_path, {})
@@ -155,7 +154,6 @@ class AugmentationView(ttk.Frame):
 
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
 
-    
     '''
     Image Selection logic
     ''' 
@@ -206,7 +204,7 @@ class AugmentationView(ttk.Frame):
         option_label = ttk.Label(option_frame, text="Add augmentation options here")
         option_label.grid(row=0, column=0, sticky="n", pady=10)  
     
-        change_button = ttk.Button(option_frame, text="Mark as Changed", command=self.aug_flip)
+        change_button = ttk.Button(option_frame, text="Flip Horizontal", command=self.aug_flip)
         change_button.grid(row=1, column=0, pady=5)  
 
         image_frame = ttk.Frame(self.augment_window)
@@ -284,8 +282,7 @@ class AugmentationView(ttk.Frame):
             self.reject_button['state'] = tk.DISABLED
             self.accept_button['text'] = "Skip" 
             self.accept_button['command'] = self.skip_image  # Same here, no need for lambda
-
-            
+      
     def update_ui_after_change(self):
         # Update buttons state
         self.update_buttons()
@@ -293,8 +290,7 @@ class AugmentationView(ttk.Frame):
         # Update label text to show current image index out of the total number of images
         current_idx = self.selected_image_paths.index(self.current_image_path) if self.current_image_path in self.selected_image_paths else 0
         self.label_text.set(f"Image {current_idx + 1} of {self.total_images}")
-
-        
+  
     def accept_changes(self):
         if self.current_image_path in self.modified_images:
             # Save the modified image to the master_image_dict
@@ -311,7 +307,6 @@ class AugmentationView(ttk.Frame):
 
             # Move to the next image and update the UI
             self.show_next_image(increment=True, accepted=True)
-
 
     def skip_image(self):     
         self.show_next_image()
@@ -330,7 +325,6 @@ class AugmentationView(ttk.Frame):
             # Indicate that the current image has been reverted
             self.changed_images.discard(self.current_image_path)
             self.update_buttons()
-
 
     def show_next_image(self, increment=True, accepted=False):
         # If the current image was accepted, remove it from the list of paths

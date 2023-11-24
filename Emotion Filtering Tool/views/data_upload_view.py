@@ -235,6 +235,7 @@ class DataUploadView(ttk.Frame):
     '''
     EXTRACT ARCHIVES
         Accepts .zip, .tar, .tar.gz, .tar.bz2, hdf5
+        dont think the hdf5 is calculating time to upload, start time should not be self.start_time, should not be class variable, skewing ent time results for multiple parallel uploads
     '''
     def extract_archive(self, archive_path, ext):
         #ext = os.path.splitext(archive_path)[1]
@@ -250,7 +251,7 @@ class DataUploadView(ttk.Frame):
         if os.path.exists(extract_dir):
             shutil.rmtree(extract_dir)
             print(f"Deleted existing extract_dir: {extract_dir}")
-        os.mkdir(extract_dir)
+            os.mkdir(extract_dir)
         if ext == '.zip':
             with zipfile.ZipFile(archive_path, 'r') as archive_ref:
                 archive_ref.extractall(extract_dir)
@@ -327,7 +328,11 @@ class DataUploadView(ttk.Frame):
     PROCESSING IMAGES
     '''
     def process_images(self):
-        self.cancellation_event.clear()
+        while True:
+            try:
+                self.ui_update_queue.get_nowait()
+            except queue.Empty:
+                break
         self.processed_images_count = 0
         selected_indices = self.dataset_filenames_listbox.curselection()
         
