@@ -139,7 +139,7 @@ if __name__ == "__main__":
     main_win = MainWindow(master=root)
     main_win.grid(row=0, column=0, sticky='nsew')
     main_win.setup_directories() 
-    root.protocol("WM_DELETE_WINDOW", main_win.destroy)
+    root.protocol("WM_DELETE_WINDOW", root.destroy)
 
     root.mainloop()
 
