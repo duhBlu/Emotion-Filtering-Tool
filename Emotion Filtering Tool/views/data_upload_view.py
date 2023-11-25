@@ -335,7 +335,7 @@ class DataUploadView(ttk.Frame):
                 break
         self.processed_images_count = 0
         selected_indices = self.dataset_filenames_listbox.curselection()
-        
+        self.cancellation_event.clear()
         # Check for selected options
         selected_emotions = [k for k, v in self.emotion_vars.items() if v.get()]
         selected_ages = [k for k, v in self.age_vars.items() if v.get()]
@@ -360,14 +360,14 @@ class DataUploadView(ttk.Frame):
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
         # Partition the image file indexes into the number of threads specified
         image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
-        threads = []
+        self.threads = []
         for start_idx, end_idx in image_ranges:
             thread = threading.Thread(target=self._threaded_process_images, args=(actions, selected_folders, start_idx, end_idx))
-            threads.append(thread)
+            self.threads.append(thread)
             thread.start()
     
         def wait_for_threads():
-            for thread in threads:
+            for thread in self.threads:
                 thread.join()
                 
         wait_thread = threading.Thread(target=wait_for_threads)    
@@ -465,6 +465,8 @@ class DataUploadView(ttk.Frame):
         
     def stop_processing(self):
         self.cancellation_event.set() 
+        for thread in self.threads:  # Assuming you have a list of threads
+            thread.join(timeout=1)  # Join with a timeout
         while True:
             try:
                 self.ui_update_queue.get_nowait()

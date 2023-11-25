@@ -124,7 +124,8 @@ class MainWindow(tk.Frame):
                         
     def destroy(self):
         # Call the superclass destroy method
-        super().destroy()
+        self.views['Upload'].stop_processing()
+        root.quit()
     
 if __name__ == "__main__":
     root = ThemedTk(theme="breeze")
