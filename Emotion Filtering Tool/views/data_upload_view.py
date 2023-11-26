@@ -11,9 +11,9 @@ import shutil
 import uuid
 import queue
 import time
+import deepface
 import h5py
 from deepface import DeepFace
-
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -368,7 +368,7 @@ class DataUploadView(ttk.Frame):
 
         # Partition images by thread count for processing
         image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
-
+        
         # Create and start threads for processing images
         for start_idx, end_idx in image_ranges:
             thread = threading.Thread(target=self._threaded_process_images, args=(actions, selected_folders, start_idx, end_idx))
@@ -431,6 +431,8 @@ class DataUploadView(ttk.Frame):
        This function returns a dictionary of images that were accepted by the neural network filter along with their features.
     '''
     def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
+        print("starting processing")
+        self.append_status(f"Starting Processing on: [{start_idx}-{end_idx}]")
         candidate_folder = self.master.candidates_dir
         
         for folder_path in selected_folders:
@@ -445,7 +447,7 @@ class DataUploadView(ttk.Frame):
                     accepted_images_dict = self.neural_network_filter([img_path], actions)
                     
                     # if images are accepted by the neural network, process the candidate images
-                    for img_path, features in accepted_images_dict.items():
+                    for img_path, features in list(accepted_images_dict.items()):
                         unique_id = uuid.uuid4() # to avoid duplicate names
                         unique_path = f"{unique_id}_{os.path.basename(img_path)}"
                         candidate_image_path = os.path.join(candidate_folder, unique_path)
@@ -501,6 +503,7 @@ class DataUploadView(ttk.Frame):
         self.master.after(100, self.listen_for_ui_updates)
 
     def process_ui_update(self, update_request):
+        self.append_status(f"[proc]: {update_request}")
         match update_request['type']:
             case 'update_progress':
                 self.master.views['Gallery'].update_progress(update_request['count'])
@@ -561,17 +564,15 @@ class DataUploadView(ttk.Frame):
 
     # Neural netork source https://github.com/serengil/deepface
     def neural_network_filter(self, image_paths, actions):
-        accepted_images = {}
+        self.temp_accepted_images = {}
         # Preparing action sets for filtering criteria
         action_sets = {key: set(value.lower() for value in actions[key]) for key in actions if actions[key]}
-
         try:
             for image_path in image_paths:
                 analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
                 self.processed_images_count += 1
                 self.ui_update_queue.put({'type': 'update_progress', 'count': self.processed_images_count})
-
-                face_data = analysis[0]
+                face_data = analysis
                 features = {}
 
                 # Process and check each feature if applicable
@@ -595,11 +596,13 @@ class DataUploadView(ttk.Frame):
 
                 # Add image to accepted if it meets all selected criteria
                 if all(feature in features for feature in actions):
-                    accepted_images[image_path] = features
+                    self.temp_accepted_images[image_path] = features
+                
         except Exception as e:
+            self.append_status(f"Error analyzing images. Error: {e}")
             print(f"Error analyzing images. Error: {e}")
 
-        return accepted_images
+        return self.temp_accepted_images
 
 
 
