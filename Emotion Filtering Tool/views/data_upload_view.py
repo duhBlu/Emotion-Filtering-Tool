@@ -1,20 +1,18 @@
-from datetime import datetime
-from io import BytesIO
-from tkinter import ttk, filedialog
 import tkinter as tk
+from tkinter import ttk, filedialog
+import tkinter.messagebox as messagebox
+from io import BytesIO
+from PIL import Image
 import threading
-import uuid
 import zipfile
 import tarfile
 import os
 import shutil
-import tkinter.messagebox as messagebox
-from PIL import Image
-from deepface import DeepFace
+import uuid
 import queue
 import time
-
 import h5py
+from deepface import DeepFace
 
 
 bg1 = "#bfbfbf"
@@ -28,6 +26,7 @@ class DataUploadView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
         self.uploaded_files = []
+        self.threads = []
         self.process_lock = threading.Lock()
         self.dataset_image_counts = {}
         self.cancellation_event = threading.Event()
@@ -99,7 +98,6 @@ class DataUploadView(ttk.Frame):
         self.status_text = tk.Text(self, height=5, bg=bg3, wrap=tk.WORD, state=tk.DISABLED, bd=0, highlightthickness=0)
         self.status_text.grid(row=3, column=0, padx=10, pady=(2, 15), sticky='nsew')
 
-
         # Add a scrollbar
         self.status_scroll = tk.Scrollbar(self, command=self.status_text.yview)
         self.status_text.config(yscrollcommand=self.status_scroll.set)
@@ -118,10 +116,12 @@ class DataUploadView(ttk.Frame):
         self.width_entry.insert(0, "200")  # default width
         self.width_entry.bind("<FocusOut>", self.validate_width_entry)
 
-
         # Move the process button slightly to the right to accommodate the new entries
         self.process_button.grid(row=3, column=1, padx=(250, 20), pady=20, sticky='se')
     
+    '''
+    UI helper functions
+    '''
     def validate_width_entry(self, event):
         try:
             # Get the current width value from the entry
@@ -177,11 +177,9 @@ class DataUploadView(ttk.Frame):
     
     def append_status(self, status_text):
         """Appends the provided text to the bottom of the status text widget with a fading effect."""
-        self.status_text.config(state=tk.NORMAL)  # Temporarily enable editing
-
-        # Insert new message at the end
+        self.status_text.config(state=tk.NORMAL)
         self.status_text.insert(tk.END, status_text + "\n")
-
+        
         # Update the tags for each existing line to shift the gradient up
         for i in range(len(self.colors) - 1, 0, -1):
             self.status_text.tag_remove(f"color{i}", "1.0", tk.END)
@@ -197,16 +195,16 @@ class DataUploadView(ttk.Frame):
         if total_lines > len(self.colors):
             for i in range(total_lines - len(self.colors)):
                 self.status_text.tag_add(f"color{len(self.colors)-1}", f"{i+1}.0 linestart", f"{i+1}.0 lineend")
-
+                
         # Scroll to the bottom of the text widget
         self.status_text.yview_moveto(1)
-
-        self.status_text.config(state=tk.DISABLED)  # Disable editing again
+        self.status_text.config(state=tk.DISABLED)
 
     '''
     Upload Dataset
     '''
     def upload_dataset(self):
+        """ promts the user for a file with images and calls the appropriate extraction function for the file type"""
         file_paths = filedialog.askopenfilenames(filetypes=[
             ('All Supported Types', '*.zip *.tar *.tar.gz *.tar.bz2 *.hdf5'),
             ('ZIP files', '*.zip'),
@@ -214,12 +212,11 @@ class DataUploadView(ttk.Frame):
             ('HDF5 files', '*.hdf5')
         ])
         if file_paths:
+            self.start_time = time.time()
             self.process_button['text'] = "Loading..."
             self.process_button['state'] = tk.DISABLED
-
             for file_path in file_paths:
                 basename = os.path.basename(file_path)
-                
                 if basename.endswith('.tar.gz'):
                     ext = '.tar.gz'
                 elif basename.endswith('.tar.bz2'):
@@ -238,12 +235,11 @@ class DataUploadView(ttk.Frame):
         dont think the hdf5 is calculating time to upload, start time should not be self.start_time, should not be class variable, skewing ent time results for multiple parallel uploads
     '''
     def extract_archive(self, archive_path, ext):
-        #ext = os.path.splitext(archive_path)[1]
         if ext == '.gz' or ext == '.bz2':  # Handle tar.gz and tar.bz2
             ext = '.'.join(os.path.basename(archive_path).split('.')[-2:])
-        self.start_time = time.time()
         threading.Thread(target=self._threaded_archive_extraction, args=(archive_path, ext), daemon=True).start()
 
+    # extracts images from zip.tar files and adds them to the dataset_filenames_listbox
     def _threaded_archive_extraction(self, archive_path, ext):
         base_name = os.path.basename(archive_path).replace(ext, '')
         extract_dir = os.path.join(self.master.extracted_images_dir, base_name).replace('\\', '/')
@@ -259,11 +255,7 @@ class DataUploadView(ttk.Frame):
             with tarfile.open(archive_path) as archive_ref:
                 archive_ref.extractall(extract_dir)
 
-        # Move all image files to the root extract directory (flatten the structure)
         image_count = 0  
-        # adding comments to explan the following code'
-        # os.walk() returns a generator that yields a tuple of (dirpath, dirnames, filenames)
-
         for dirpath, _, filenames in os.walk(extract_dir):
             for f in filenames:
                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.tif')):
@@ -299,6 +291,7 @@ class DataUploadView(ttk.Frame):
         self.append_status(f"{base_name}: Extracted to {extract_dir}")
         self.master.after(0, self._finish_upload) 
 
+    # extracts images from hdf5 files that can be created in the export options and adds them to the dataset_filenames_listbox
     def extract_hdf5(self, hdf5_path):
         base_name = os.path.basename(hdf5_path).replace('.hdf5', '')
         extract_dir = os.path.join(self.master.extracted_images_dir, base_name).replace('\\', '/')
@@ -318,6 +311,15 @@ class DataUploadView(ttk.Frame):
         self.dataset_image_counts[extract_dir] = image_count
         entry_text = f"{base_name} \t({image_count})"
         self.dataset_filenames_listbox.insert(tk.END, entry_text)
+        
+        elapsed_time = time.time() - self.start_time
+        minutes, seconds = divmod(elapsed_time, 60)
+        if minutes <= 0:
+            self.append_status(f"{base_name}: Extracted {image_count} images in {int(seconds)} seconds")
+        else:
+            self.append_status(f"{base_name}: Extracted {image_count} images in {int(minutes)} minutes {int(seconds)} seconds")        
+
+        self.append_status(f"{base_name}: Extracted to {extract_dir}")
         self.master.after(0, self._finish_upload) 
         
     def _finish_upload(self):
@@ -328,25 +330,18 @@ class DataUploadView(ttk.Frame):
     PROCESSING IMAGES
     '''
     def process_images(self):
-        while True:
-            try:
-                self.ui_update_queue.get_nowait()
-            except queue.Empty:
-                break
+        # Initialize variables
         self.processed_images_count = 0
-        selected_indices = self.dataset_filenames_listbox.curselection()
         self.cancellation_event.clear()
-        # Check for selected options
+        selected_indices = self.dataset_filenames_listbox.curselection()
+        
+        # Collect selected filtering options
         selected_emotions = [k for k, v in self.emotion_vars.items() if v.get()]
         selected_ages = [k for k, v in self.age_vars.items() if v.get()]
         selected_races = [k for k, v in self.race_vars.items() if v.get()]
         selected_genders = [k for k, v in self.gender_vars.items() if v.get()]
-        actions = {}
-        if selected_emotions: actions['emotion']=selected_emotions
-        if selected_ages: actions['age']=selected_ages
-        if selected_genders: actions['gender']=selected_genders
-        if selected_races: actions['race']=selected_races
-        # If no datasets or no filtering options are selected, show an informative message
+
+        # Check for dataset and filtering option selection
         if not selected_indices:
             messagebox.showinfo("No Datasets Selected", "Please select a dataset to process.")
             return
@@ -354,105 +349,113 @@ class DataUploadView(ttk.Frame):
             messagebox.showinfo("No Filtering Options Selected", "Please select at least one filtering option.")
             return
         
+        # Prepare actions based on selected options
+        actions = {}
+        if selected_emotions: actions['emotion'] = selected_emotions
+        if selected_ages: actions['age'] = selected_ages
+        if selected_genders: actions['gender'] = selected_genders
+        if selected_races: actions['race'] = selected_races
+
         self.master.change_view('Gallery')
+        
+        # Determine number of threads
         NUM_THREADS = (os.cpu_count() // 2) or 4
-      
+
+        # Gather selected dataset folders
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
-        # Partition the image file indexes into the number of threads specified
+
+        # Partition images by thread count for processing
         image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
-        self.threads = []
+
+        # Create and start threads for processing images
         for start_idx, end_idx in image_ranges:
             thread = threading.Thread(target=self._threaded_process_images, args=(actions, selected_folders, start_idx, end_idx))
             self.threads.append(thread)
             thread.start()
-    
+
+        # Function to wait for all threads to complete
         def wait_for_threads():
             for thread in self.threads:
                 thread.join()
-                
+
+        # Start a thread to wait for all processing threads
         wait_thread = threading.Thread(target=wait_for_threads)    
         wait_thread.start()
+
       
     def _divide_images_by_count(self, selected_folders, num_threads):
         """ 
-        Partition the image index ranges into the number of threads specified
+        Partition the image index ranges into the number of threads specified.
         """
+        # Calculate total images and set progress bar maximum
         total_images = sum(self.dataset_image_counts[folder] for folder in selected_folders)
         self.master.views["Gallery"].set_progress_maximum(total_images)
 
-        # Adjust the number of threads if the dataset is smaller
+        # Adjust number of threads based on total images
         num_threads = min(total_images, num_threads)
-    
-        avg_images_per_thread = total_images // num_threads
-        remaining_images = total_images % num_threads  # This will handle the distribution of the remaining images
 
+        # Determine distribution of images across threads
+        avg_images_per_thread = total_images // num_threads
+        remaining_images = total_images % num_threads
+
+        # Partition images into ranges for each thread
         current_idx = 0
         ranges = []
-        for i in range(num_threads):
+        for _ in range(num_threads):
             start_idx = current_idx
-            end_idx = start_idx + avg_images_per_thread
-
-            if remaining_images > 0:
-                end_idx += 1  # Distribute the remaining images
-                remaining_images -= 1
-
+            end_idx = start_idx + avg_images_per_thread + (1 if remaining_images > 0 else 0)
+            remaining_images -= 1 if remaining_images > 0 else 0
             ranges.append((start_idx, end_idx))
             current_idx = end_idx
 
         return ranges
+
     
-    def _batched_image_paths(self, folder_path, BATCH_SIZE):
-        """
-        Lazy Loading
-        A generator that yields image paths in batches of size BATCH_SIZE
-        """
-        img_paths = (os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path))
-        batch = []
-        for img_path in img_paths:
-            batch.append(img_path)
-            if len(batch) == BATCH_SIZE:
-                yield batch
-                batch = []
-        if batch:
-            yield batch
-            
+    def _batched_image_paths(self, folder_path, BATCH_SIZE, start_idx, end_idx):
+        """ Yield batches of image paths within the specified index range. """
+        img_paths = [os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path)]
+        for i in range(start_idx, min(end_idx, len(img_paths)), BATCH_SIZE):
+            yield img_paths[i:i + BATCH_SIZE]
+       
+    '''What is this function doing?
+    
+    
+    1. Iterates over each folder_path in selected_folders.
+    2. For each folder, it retrieves batches of image paths using _batched_image_paths.
+    3. Each image path in the batch is then processed. 
+       However, an image is processed only if its index (processed_so_far) falls within the range allocated to the thread (start_idx to end_idx).
+    4. This means each thread only processes its assigned portion of the total images, ensuring an even workload distribution per thread.
+    '''
     def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
         print("started processing")
         processed_so_far = 0
         candidate_folder = self.master.candidates_dir
+        
         for folder_path in selected_folders:
-            # Use the lazy loader here
-            for batched_img_paths in self._batched_image_paths(folder_path, 10):
+            for batched_img_paths in self._batched_image_paths(folder_path, 10, start_idx, end_idx):
                 for img_path in batched_img_paths:
+                    # Check for cancellation or pause events
                     if self.cancellation_event.is_set():
                         return
-                    while self.pause_event.is_set():  # Pauses the processing while the pause event is set
+                    while self.pause_event.is_set():
                         time.sleep(0.5)
-                    if start_idx <= processed_so_far < end_idx:
-                        accepted_images_dict = self.neural_network_filter([img_path], actions)
-                        for img_path, features in accepted_images_dict.items():
-                            unique_id = uuid.uuid4()
-                            unique_path = f"{unique_id}_{os.path.basename(img_path)}"
-                            candidate_image_path = os.path.join(candidate_folder, unique_path)
-                            shutil.copy(img_path, candidate_image_path)
-                            with open(candidate_image_path, 'rb') as f:
-                                image_data = f.read()
-                                image = Image.open(BytesIO(image_data))
-                                # Update the master image dictionary via the MainWindow
-                                self.master.add_image_to_master_dict(
-                                    candidate_image_path,
-                                    features,  # Assuming 'features' contains tags
-                                    image,
-                                    candidate_folder
-                                )
-                            update_data = {
-                                'type': 'update_gallery',
-                                'image_path': candidate_image_path
-                            }
-                            self.ui_update_queue.put(update_data)
-                    processed_so_far += 1
-                    if processed_so_far >= end_idx:
-                        break
+                    
+                    accepted_images_dict = self.neural_network_filter([img_path], actions)
+                    for img_path, features in accepted_images_dict.items():
+                        unique_id = uuid.uuid4()
+                        unique_path = f"{unique_id}_{os.path.basename(img_path)}"
+                        candidate_image_path = os.path.join(candidate_folder, unique_path)
+                        shutil.copy(img_path, candidate_image_path)
+                            
+                        # Read and update image information
+                        with open(candidate_image_path, 'rb') as f:
+                            image_data = f.read()
+                            image = Image.open(BytesIO(image_data))
+                            self.master.add_image_to_master_dict(candidate_image_path, features, image, candidate_folder)
+                            
+                        # Update UI with new image
+                        update_data = {'type': 'update_gallery','image_path': candidate_image_path}
+                        self.ui_update_queue.put(update_data)
 
     '''
     Listeners for UI updates
@@ -465,8 +468,9 @@ class DataUploadView(ttk.Frame):
         
     def stop_processing(self):
         self.cancellation_event.set() 
-        for thread in self.threads:  # Assuming you have a list of threads
-            thread.join(timeout=1)  # Join with a timeout
+        # join all threads and clear the queue
+        for thread in self.threads:
+            thread.join(timeout=1)
         while True:
             try:
                 self.ui_update_queue.get_nowait()
@@ -474,14 +478,11 @@ class DataUploadView(ttk.Frame):
                 break
         
     def listen_for_ui_updates(self):
-        if self.cancellation_event.is_set():
+        try:
+            update_request = self.ui_update_queue.get_nowait()
+            self.process_ui_update(update_request)
+        except queue.Empty:
             pass
-        else:
-            try:
-                update_request = self.ui_update_queue.get_nowait()
-                self.process_ui_update(update_request)
-            except queue.Empty:
-                pass
         # Schedule the next check in 100ms
         self.master.after(100, self.listen_for_ui_updates)
 
@@ -547,49 +548,46 @@ class DataUploadView(ttk.Frame):
         accepted_images = {}
         try:
             for image_path in image_paths:
-                if self.cancellation_event.is_set():
-                    pass
-                else:
-                    analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
-                    #print(analysis)]
-                    # future dev note
-                    # instead of using DeepFace to process images, attach a chat gpt api to the image and use the chat gpt api to process the image
-                    self.processed_images_count += 1
-                    update_request = {
-                        'type': 'update_progress',
-                        'count': self.processed_images_count
-                    }
-                    self.ui_update_queue.put(update_request)
+                analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
+                #print(analysis)]
+                # future dev note
+                # instead of using DeepFace to process images, attach a chat gpt api to the image and use the chat gpt api to process the image
+                self.processed_images_count += 1
+                update_request = {
+                    'type': 'update_progress',
+                    'count': self.processed_images_count
+                }
+                self.ui_update_queue.put(update_request)
 
-                    # analyze the face data frum deepface
-                    face_data = analysis[0]
-                    features = {}
-                    if actions.get('emotion'):
-                        emotion_scores = face_data['emotion']
-                        mapped_emotion = self.get_custom_emotion(emotion_scores)
-                        features['emotion'] = mapped_emotion.lower()
+                # analyze the face data frum deepface
+                face_data = analysis[0]
+                features = {}
+                if actions.get('emotion'):
+                    emotion_scores = face_data['emotion']
+                    mapped_emotion = self.get_custom_emotion(emotion_scores)
+                    features['emotion'] = mapped_emotion.lower()
 
-                    if actions.get('gender'):
-                        features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
+                if actions.get('gender'):
+                    features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
 
-                    if actions.get('race'):
-                        features['race'] = face_data['dominant_race'].lower()
+                if actions.get('race'):
+                    features['race'] = face_data['dominant_race'].lower()
 
-                    if actions.get('age'):
-                        detected_age = face_data['age']
-                        age_is_acceptable = self.age_within_selected_range(detected_age, actions.get('age'))
-                        if age_is_acceptable:
-                            features['age'] = str(detected_age)
+                if actions.get('age'):
+                    detected_age = face_data['age']
+                    age_is_acceptable = self.age_within_selected_range(detected_age, actions.get('age'))
+                    if age_is_acceptable:
+                        features['age'] = str(detected_age)
 
-                    if (
-                        (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
-                        (not actions.get('age') or 'age' in features) and
-                        (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
-                        (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
-                    ):
-                        accepted_images[image_path] = features
+                if (
+                    (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
+                    (not actions.get('age') or 'age' in features) and
+                    (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
+                    (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
+                ):
+                    accepted_images[image_path] = features
 
-                return accepted_images
+            return accepted_images
 
         except Exception as e:
             print(f"Error analyzing images. Error: {e}")

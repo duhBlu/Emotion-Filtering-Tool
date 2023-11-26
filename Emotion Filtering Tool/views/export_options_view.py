@@ -1,13 +1,9 @@
-import shutil
 import tkinter as tk
 from tkinter import ttk
 from tkinter import filedialog
 import os
-import json
-import zipfile
 import h5py
 import numpy as np
-from PIL import Image
 
 class ExportOptionView(ttk.Frame):
     def __init__(self, parent, **kwargs):
@@ -141,7 +137,6 @@ class ExportOptionView(ttk.Frame):
                 # Store metadata
                 for tag, value in tags.items():
                     image_dataset.attrs[tag] = value
-            print("FLSKDJHFL:SKDHFKL")
 
         print(f"Exported data to {hdf5_path} successfully.")
 

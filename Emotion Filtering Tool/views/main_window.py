@@ -1,8 +1,7 @@
+from ttkthemes import ThemedTk
 import tkinter as tk
 import shutil
 import os
-from turtle import backward
-from ttkthemes import ThemedTk
 from views.data_upload_view import DataUploadView
 from views.gallery_view import GalleryView
 from views.manual_review import ManualReviewView
@@ -57,7 +56,6 @@ class MainWindow(tk.Frame):
             btn.grid(row=idx, column=0, sticky='nsew')
             self.buttons[btn_text] = btn  # Store the button reference
             
-
         buffer = tk.Frame(self.view_container, bg='white')
         buffer.grid(row=0, column=0, sticky='nsew', padx=1000, pady=1000) 
 
@@ -67,7 +65,8 @@ class MainWindow(tk.Frame):
             view.lower(buffer) 
             
         self.change_view('Upload')
-          
+    
+    # Change views to the button clicked
     def change_view(self, view_name):
         if view_name in self.views:
             for name, view in self.views.items():
@@ -78,7 +77,9 @@ class MainWindow(tk.Frame):
                     btn.config(bg="#e5e5e5", fg="#363636") 
                 else:
                     btn.config(bg="#bfbfbf", fg="#262626")
-                    
+      
+    # This function is called when user uploads images. It adds the images to the master dictionary
+    # maintains image tag mapping and a reference to the photo object for updates
     def add_image_to_master_dict(self, file_path, tags, photo_object, current_directory):
         # Add an entry to the master image dictionary
         self.master_image_dict[file_path] = {
@@ -86,7 +87,8 @@ class MainWindow(tk.Frame):
             "photo_object": photo_object,
             "tags": tags
         }    
-
+    
+    # create the working directory with some sub directories to seperate images in different stages
     def setup_directories(self):
         # Define the root working directory within the user's home directory
         home_dir = os.path.expanduser('~')
@@ -122,11 +124,13 @@ class MainWindow(tk.Frame):
                     elif os.path.isdir(file_path):  # if there are directories in other than 'extracted_images'
                         shutil.rmtree(file_path)
                         
+    # Function that is called when the application closes. Kills the image processing then the root                  
     def destroy(self):
         # Call the superclass destroy method
         self.views['Upload'].stop_processing()
         root.quit()
-    
+
+# Main entry point of the application  
 if __name__ == "__main__":
     root = ThemedTk(theme="breeze")
     root.title('Emotion Filtering Tool')

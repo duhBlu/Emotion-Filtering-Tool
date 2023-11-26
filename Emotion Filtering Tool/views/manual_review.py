@@ -1,18 +1,16 @@
-from cgitb import text
-from pprint import pprint
 import tkinter as tk
-from tkinter import PhotoImage, ttk
+from tkinter import ttk
 from collections import defaultdict
-from PIL import Image, ImageTk, ImageDraw, ImageFont
+from PIL import Image, ImageTk
 import tkinter.messagebox as mb
 import os
 import shutil
-import uuid
+
 class ManualReviewView(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master)
-        self.accepted_count = 0  # count of accepted images
-        self.total_accepted_count = 0  # count of accepted images this session
+        self.accepted_count = 0
+        self.total_accepted_count = 0
         self.selected_images = defaultdict(bool) 
         self.tag_labels = {}
         self.pending_image_paths = []
@@ -56,21 +54,25 @@ class ManualReviewView(ttk.Frame):
         self.send_to_augment_button = ttk.Button(self, text="Send Accepted to Augmentation", command=self.send_to_augment)
         self.send_to_augment_button.grid(row=2, column=1, ipadx=20, ipady=20, padx=10, pady=10, sticky="se")
         
+        # yeah i know this is hideous what r u gonna do about it
         data_upload_view = self.master.views["Upload"]
         emotion_options = ['<None>', '<Remove>'] + list(data_upload_view.emotion_vars.keys())
         race_options = ['<None>', '<Remove>'] + list(data_upload_view.race_vars.keys())
         gender_options = ['<None>', '<Remove>'] + list(data_upload_view.gender_vars.keys())
-        
+
         emotion_label = ttk.Label(self, text="Emotion:")
         gender_label = ttk.Label(self, text="Gender:")
         age_label = ttk.Label(self, text="Age:")
         race_label = ttk.Label(self, text="Race:")
+        
         self.emotion_combobox = ttk.Combobox(self, width=10, values=emotion_options)
         self.gender_combobox = ttk.Combobox(self, width=10, values=gender_options)
         self.is_checked = tk.BooleanVar()
+        
         trashcan_image = Image.open("./Resources/Icons/remove.png")
         trashcan_image = trashcan_image.resize((20, 20), Image.LANCZOS)
         self.tk_trashcan_image = ImageTk.PhotoImage(trashcan_image)
+        
         self.age_entry = ttk.Entry(self, width=4, validate="key", validatecommand=(self.register(self.validate_age), '%P'))
         self.age_remove_checkbox = ttk.Checkbutton(self, image=self.tk_trashcan_image, variable=self.is_checked, onvalue=True, offvalue=False)
         self.race_combobox = ttk.Combobox(self, width=10, values=race_options)
@@ -99,13 +101,10 @@ class ManualReviewView(ttk.Frame):
 
         accept_image_resized = self.resize_image(accept_image, 100, 100)
         reject_image_resized = self.resize_image(reject_image, 100, 100)
-       
-        self.accept_image_resized = ImageTk.PhotoImage(accept_image_resized)
-        self.reject_image_resized = ImageTk.PhotoImage(reject_image_resized)
 
         # Create images with overlay and text
-        self.accept_image_with_text = ImageTk.PhotoImage(self.add_overlay_and_text(accept_image_resized, "Accept"))
-        self.reject_image_with_text = ImageTk.PhotoImage(self.add_overlay_and_text(reject_image_resized, "Reject"))
+        self.accept_image_with_text = ImageTk.PhotoImage(self.add_overlay_and_text(accept_image_resized))
+        self.reject_image_with_text = ImageTk.PhotoImage(self.add_overlay_and_text(reject_image_resized))
 
         # Setting up buttons with the default images (with text)
         self.accept_button = tk.Button(self, image=self.accept_image_with_text, text="Accept", compound="center", bg='#79c77a', borderwidth=0, command=self.accept_images)
@@ -123,17 +122,17 @@ class ManualReviewView(ttk.Frame):
     
     def on_enter(self, event):
         if event.widget == self.accept_button:
-            event.widget.config(image=self.accept_image_resized, text="",  bg='green')
+            event.widget.config(bg='#3eda76')
         elif event.widget == self.reject_button:
-            event.widget.config(image=self.reject_image_resized, text="",  bg='red')
+            event.widget.config(bg='#db4141')
 
     def on_leave(self, event):
         if event.widget == self.accept_button:
-            event.widget.config(image=self.accept_image_with_text, text="Accept", compound="center", bg='#79c77a')
+            event.widget.config(bg='#afc9b8')
         elif event.widget == self.reject_button:
-            event.widget.config(image=self.reject_image_with_text, text="Reject", compound="center", bg='#c4455a')
+            event.widget.config(bg='#f2c4c2')
 
-    def add_overlay_and_text(self, image, text):
+    def add_overlay_and_text(self, image):
         # Create an overlay with transparency
         overlay = Image.new('RGBA', image.size, (255, 255, 255, 220))
         return Image.alpha_composite(image.convert('RGBA'), overlay)

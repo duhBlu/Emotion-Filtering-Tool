@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>Emotion Filtering Tool</Name>
     <RootNamespace>Emotion Filtering Tool</RootNamespace>
-    <InterpreterId>Global|PythonCore|3.10</InterpreterId>
+    <InterpreterId>MSBuild|env|$(MSBuildProjectFullPath)</InterpreterId>
     <IsWindowsApplication>True</IsWindowsApplication>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">

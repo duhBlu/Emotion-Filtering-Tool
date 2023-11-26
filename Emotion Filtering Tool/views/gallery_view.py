@@ -1,10 +1,8 @@
 import os
-from random import setstate
 import shutil
 import tkinter as tk
 from tkinter import ttk
-from PIL import Image, ImageTk
-from io import BytesIO
+from PIL import ImageTk
 
 class GalleryView(ttk.Frame):
     def __init__(self, master=None):
