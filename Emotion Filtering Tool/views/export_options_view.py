@@ -31,16 +31,23 @@ class ExportOptionView(ttk.Frame):
         self.left_frame.grid_rowconfigure(0, weight=5)
         self.left_frame.grid_rowconfigure(1, weight=1)
         
+        
         self.toggle_frame = tk.Frame(self.left_frame, bg=bg2)
         self.toggle_frame.grid(row=0, column=0, padx=10, pady=10,  sticky="nsew")
         self.toggle_frame.grid_columnconfigure(0, weight=1)
         self.toggle_frame.grid_rowconfigure(0, weight=1)
+        self.info_label = tk.Label(self.toggle_frame, text="We were hoping to Integrate Data Version Control (DVC). Didn't have time :( \n  May work on in the future, but for now you can export the images gathered in this current session.", bg=bg2)
+        self.info_label.grid(row=0, column=0, sticky="nsew")
         
         self.revert_button = ttk.Button(self.left_frame, text="Revert Changes", state='disabled')
         self.revert_button.grid(row=1, column=0, padx=(10, 10), pady=(0, 10), sticky="sw")
         
         self.export_button = ttk.Button(self.left_frame, text="Export", command=self.export_dataset)
         self.export_button.grid(row=1, column=0, padx=(0, 10), pady=(0, 10), sticky="se")
+        
+        self.label_count = ttk.Label(self.left_frame, background=bg1, textvariable=self.image_count_var)
+        self.label_count.grid(row=1, column=0, padx=(0, 5), pady=(0,50), sticky="se")
+        self.update_image_count()
         
         # Divider
         self.divider = tk.Frame(self, bg=divider_color, width=2)
@@ -66,9 +73,6 @@ class ExportOptionView(ttk.Frame):
         self.toggle_panel.grid_rowconfigure(0, weight=1)
         self.toggle_panel.grid_columnconfigure(0, weight=1)
 
-        self.label_count = ttk.Label(self.right_frame, background=bg1, textvariable=self.image_count_var)
-        self.label_count.grid(row=4, column=0, padx=(0, 5), sticky="e")
-        self.update_image_count()
         
         self.get_changes_button = ttk.Button(self.right_frame, text="Get Changes", state='disabled')
         self.get_changes_button.grid(row=4, column=1, padx=(5,0), sticky="w")

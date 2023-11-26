@@ -201,7 +201,8 @@ class GalleryView(ttk.Frame):
 
         except Exception as e:
             print(f"Error displaying image: {e}")
-      
+    
+    # load in up to 100 more images post initial load
     def load_more_images(self):
         self.load_more_button["state"] = tk.DISABLED
         load_count = 100 if self.images_loaded >= 100 else 100
@@ -215,6 +216,7 @@ class GalleryView(ttk.Frame):
                 self.load_single_image(image_path, features)
                 self.images_loaded += 1
             self.load_more_button["state"] = tk.NORMAL
+            
     '''
     Clear Images
     '''         
