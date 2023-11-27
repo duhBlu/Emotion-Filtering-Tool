@@ -422,6 +422,7 @@ class DataUploadView(ttk.Frame):
         img_paths = [os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path)]
         for i in range(start_idx, end_idx, BATCH_SIZE):
             batch_end_idx = min(i + BATCH_SIZE, end_idx)
+            self.append_status(f"[proc]: Yielding Batch: [{i}-{batch_end_idx}]")
             yield img_paths[i:batch_end_idx]
 
     '''What is this function doing?
@@ -433,7 +434,7 @@ class DataUploadView(ttk.Frame):
        This function returns a dictionary of images that were accepted by the neural network filter along with their features.
     '''
     def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
-        self.append_status(f"Starting Processing on: [{start_idx}-{end_idx}]")
+        self.append_status(f"[proc]: Processing range: [{start_idx}-{end_idx}]")
         candidate_folder = self.master.candidates_dir
         for folder_path in selected_folders:
             for batched_img_paths in self._batched_image_paths(folder_path, start_idx, end_idx):
@@ -444,7 +445,6 @@ class DataUploadView(ttk.Frame):
                     while self.pause_event.is_set():
                         time.sleep(0.5)
                     
-                    self.append_status(f"[proc]: {img_path}")
                     accepted_images_dict = self.neural_network_filter([img_path], actions)
                     accepted_images_dict_copy = accepted_images_dict.copy()
                     # if images are accepted by the neural network, process the candidate images
@@ -465,9 +465,7 @@ class DataUploadView(ttk.Frame):
                     with self.process_lock:
                         self.master.add_image_to_master_dict(candidate_image_path, features, image, candidate_folder)
                         self.ui_update_queue.put(update_data)
-                        
-
-
+          
     '''
     Listeners for UI updates
     '''  

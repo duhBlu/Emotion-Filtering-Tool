@@ -161,40 +161,38 @@ class ManualReviewView(ttk.Frame):
     Update the tags for the selected images
     '''    
     def update_tags(self):
-        # Loop over the indices in self.selected_images
-        for idx in self.selected_images:
-            if self.selected_images[idx]:  # Check if the current image is selected
-                # Use the index to get the correct file path from pending_image_paths
-                image_path = self.pending_image_paths[idx]
-                image_data = self.master.master_image_dict.get(image_path, {})
-                image_tags = image_data.get('tags', {})
+        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
+        for idx in selected_indices:
+            image_path = self.pending_image_paths[idx]
+            image_data = self.master.master_image_dict.get(image_path, {})
+            image_tags = image_data.get('tags', {})
 
-                # Define a dictionary with tag keys and their associated UI components and optional conditions
-                ui_elements = {
-                    'emotion': (self.emotion_combobox.get(), None),
-                    'age': (self.age_entry.get(), lambda x: x.isdigit() and 0 <= int(x) <= 100),
-                    'race': (self.race_combobox.get(), None),
-                    'gender': (self.gender_combobox.get(), None)
-                }
+            # Define a dictionary with tag keys and their associated UI components and optional conditions
+            ui_elements = {
+                'emotion': (self.emotion_combobox.get(), None),
+                'age': (self.age_entry.get(), lambda x: x.isdigit() and 0 <= int(x) <= 100),
+                'race': (self.race_combobox.get(), None),
+                'gender': (self.gender_combobox.get(), None)
+            }
 
-                # Update or remove tags based on selections
-                for tag_key, (selection, condition) in ui_elements.items():
-                    if tag_key == 'age' and self.is_checked.get():
-                        image_tags.pop(tag_key, None)
-                    elif selection == '<Remove>':
-                        image_tags.pop(tag_key, None)
-                    elif selection != '<None>' and (condition is None or condition(selection)):
-                        image_tags[tag_key] = selection
+            # Update or remove tags based on selections
+            for tag_key, (selection, condition) in ui_elements.items():
+                if tag_key == 'age' and self.is_checked.get():
+                    image_tags.pop(tag_key, None)
+                elif selection == '<Remove>':
+                    image_tags.pop(tag_key, None)
+                elif selection != '<None>' and (condition is None or condition(selection)):
+                    image_tags[tag_key] = selection
 
-                if image_data:
-                    self.master.master_image_dict[image_path]['tags'] = image_tags
+            if image_data:
+                self.master.master_image_dict[image_path]['tags'] = image_tags
 
-                new_tag_string = ', '.join([f"{v.lower()}" for _, v in image_tags.items()])
+            new_tag_string = ', '.join([f"{v.lower()}" for _, v in image_tags.items()])
 
-                tag_label = self.tag_labels.get(idx)
-                if tag_label:
-                    tag_label.config(text=new_tag_string)
-                self.canvas.update_idletasks()
+            tag_label = self.tag_labels.get(idx)
+            if tag_label:
+                tag_label.config(text=new_tag_string)
+            self.canvas.update_idletasks()
 
     '''
     Send data to Augmentation view
@@ -284,17 +282,17 @@ class ManualReviewView(ttk.Frame):
             self.current_col = 0
             self.current_row += 1
         
-        check_var = tk.IntVar()
         # Image Label
         img_label = ttk.Label(self.frame_images, image=photo)
         img_label.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
-        img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
         img_label.bind("<MouseWheel>", self._on_mousewheel)
 
         # Checkbutton (added to the top-left of the image)
+        check_var = tk.IntVar()
         checkbutton = ttk.Checkbutton(self.frame_images, variable=check_var)
         checkbutton.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
         checkbutton['command'] = lambda idx=idx, var=check_var: self.toggle_selection(idx, var)
+        img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
 
         # Add tags as a label to the image
         tag_label = ttk.Label(self.frame_images, text=tags)
