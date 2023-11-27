@@ -161,9 +161,8 @@ class ManualReviewView(ttk.Frame):
     Update the tags for the selected images
     '''    
     def update_tags(self):
-        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
-        for idx in selected_indices:
-            image_path = self.pending_image_paths[idx]
+        selected_image_paths = [path for path, selected in self.selected_images.items() if selected]
+        for image_path in selected_image_paths:
             image_data = self.master.master_image_dict.get(image_path, {})
             image_tags = image_data.get('tags', {})
 
@@ -187,12 +186,11 @@ class ManualReviewView(ttk.Frame):
             if image_data:
                 self.master.master_image_dict[image_path]['tags'] = image_tags
 
-            new_tag_string = ', '.join([f"{v.lower()}" for _, v in image_tags.items()])
+            new_tag_string = ', '.join([f"{v.lower()}" for _, v in image_data['tags'].items()])
 
-            tag_label = self.tag_labels.get(idx)
+            tag_label = self.tag_labels.get(image_path)
             if tag_label:
                 tag_label.config(text=new_tag_string)
-            self.canvas.update_idletasks()
 
     '''
     Send data to Augmentation view
@@ -239,7 +237,7 @@ class ManualReviewView(ttk.Frame):
         image_width = int(image_width)
         if clear:
             self.clear_review()
-        for idx, image_path in enumerate(image_paths):
+        for image_path in image_paths:
             image_data = self.master.master_image_dict.get(image_path, {})
             photo_object = image_data.get('photo_object')
             tags = image_data.get('tags', {})
@@ -248,7 +246,7 @@ class ManualReviewView(ttk.Frame):
             resized_image = self.resize_image(photo_object, image_width)
             formatted_tags = ", ".join(tags.values()) if tags else ""
             
-            self.add_image_to_review(idx, resized_image, formatted_tags)
+            self.add_image_to_review(image_path, resized_image, formatted_tags)
 
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         
@@ -269,7 +267,7 @@ class ManualReviewView(ttk.Frame):
         image = image.resize((new_width, new_height), Image.LANCZOS)
         return image
     
-    def add_image_to_review(self, idx, image, tags):
+    def add_image_to_review(self, image_path, image, tags):
         photo = ImageTk.PhotoImage(image)
         self.imageTk_objects.append(photo)
 
@@ -291,15 +289,15 @@ class ManualReviewView(ttk.Frame):
         check_var = tk.IntVar()
         checkbutton = ttk.Checkbutton(self.frame_images, variable=check_var)
         checkbutton.grid(row=self.current_row, column=self.current_col, sticky="nw", padx=5, pady=5)
-        checkbutton['command'] = lambda idx=idx, var=check_var: self.toggle_selection(idx, var)
-        img_label.bind("<Button-1>", lambda event, idx=idx, var=check_var: self.image_click(idx, var))
+        checkbutton['command'] = lambda idx=image_path, var=check_var: self.toggle_selection(image_path, var)
+        img_label.bind("<Button-1>", lambda event, idx=image_path, var=check_var: self.image_click(idx, var))
 
         # Add tags as a label to the image
         tag_label = ttk.Label(self.frame_images, text=tags)
         tag_label.grid(row=self.current_row, column=self.current_col, sticky="ne", padx=5, pady=5)
         tag_label.bind("<MouseWheel>", self._on_mousewheel)
         
-        self.tag_labels[idx] = tag_label
+        self.tag_labels[image_path] = tag_label
         self.current_row_width += image_width_with_padding
         self.current_col += 1
 
@@ -326,19 +324,11 @@ class ManualReviewView(ttk.Frame):
     # We are currently storing a reference to the photo object in this class, so we could just remove the images/labels from the grid and then update their index in the grid. 
     # This is similar to how we are updating the labels/tags on the images. It just updates the actual label reference instead of the whole grid of images
     def process_selected_images(self, accept=True):
-        # Create a list of selected indices to process
-        selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
-        # Create a list to collect the paths of images to remove from pending_image_paths
-        paths_to_remove = []
-
-        # Iterate over selected indices
-        for idx in selected_indices:
-            # Since the pending_image_paths list might be shorter than the number of items in selected_images
-            # due to previous removals, make sure the index is within range.
-            if idx < len(self.pending_image_paths):
-                image_path = self.pending_image_paths[idx]
-                image_data = self.master.master_image_dict[image_path]
-
+        # Iterate over selected image paths
+        selected_images_copy = self.selected_images.copy()
+        for image_path, selected in selected_images_copy.items():
+            if selected:
+                image_data = self.master.master_image_dict.get(image_path, {})
                 if accept:
                     # Move the image to the accepted images directory
                     dest_path = os.path.join(self.master.accepted_images_dir, os.path.basename(image_path))
@@ -356,11 +346,8 @@ class ManualReviewView(ttk.Frame):
                     os.remove(image_path)
 
                 # Add this path to the list of paths to remove
-                paths_to_remove.append(image_path)
-
-        # Now remove the processed paths from pending_image_paths
-        for path in paths_to_remove:
-            self.pending_image_paths.remove(path)
+                self.pending_image_paths.remove(image_path)
+                self.selected_images.pop(image_path)
 
         # Show only the images that are still pending review
         self.show_images(self.pending_image_paths, True)
