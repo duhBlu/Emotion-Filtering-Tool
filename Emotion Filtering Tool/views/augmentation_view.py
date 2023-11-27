@@ -172,7 +172,7 @@ class AugmentationView(ttk.Frame):
         self.current_image_idx = 0
         self.processed_images = 0
         selected_indices = [idx for idx, selected in self.selected_images.items() if selected]
-        total_images = len(selected_indices)
+        self.total_selected_images = len(selected_indices)
         self.selected_indices_queue = selected_indices
         self.selected_image_paths = [self.paths_pending_export[idx] for idx in selected_indices]
         self.current_image_path = None
@@ -224,7 +224,7 @@ class AugmentationView(ttk.Frame):
         label_text = tk.StringVar()
         progress_label = ttk.Label(button_frame, textvariable=label_text)
         progress_label.grid(row=1, column=1)
-        label_text.set(f"Image {self.current_image_idx + 1} of {total_images}")
+        label_text.set(f"Image {self.current_image_idx + 1} of {self.total_selected_images}")
 
         reject_button = ttk.Button(button_frame, text="Cancel", command=lambda: self.cancel_augment())
         reject_button.grid(row=1, column=0, padx=(0, 5))
@@ -286,7 +286,7 @@ class AugmentationView(ttk.Frame):
 
         # Update label text to show current image index out of the total number of images
         current_idx = self.current_image_idx  # Directly use the current image index
-        self.label_text.set(f"Image {self.processed_images} of {self.total_images}")
+        self.label_text.set(f"Image {self.processed_images} of {self.total_selected_images}")
 
   
     def accept_changes(self):

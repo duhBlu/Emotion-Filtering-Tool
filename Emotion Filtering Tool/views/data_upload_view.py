@@ -1,8 +1,11 @@
+import io
 import tkinter as tk
 from tkinter import ttk, filedialog
 import tkinter.messagebox as messagebox
 from io import BytesIO
 from PIL import Image
+from functools import wraps
+import sys
 import threading
 import zipfile
 import tarfile
@@ -11,9 +14,9 @@ import shutil
 import uuid
 import queue
 import time
-import deepface
 import h5py
 from deepface import DeepFace
+
 
 bg1 = "#bfbfbf"
 bg2 = "#e5e5e5"
@@ -359,12 +362,12 @@ class DataUploadView(ttk.Frame):
 
         self.master.change_view('Gallery')
         
+        # Gather selected dataset folders
+        selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
+
         # Determine number of threads
         NUM_THREADS = (os.cpu_count() // 2) or 4
         self.append_status(f"[proc]: Number of threads: {NUM_THREADS}")
-
-        # Gather selected dataset folders
-        selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
 
         # Partition images by thread count for processing
         image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
@@ -413,15 +416,14 @@ class DataUploadView(ttk.Frame):
         return ranges
 
     # yield batches of image paths within the specified index range
-    def _batched_image_paths(self, folder_path, BATCH_SIZE, start_idx, end_idx):
+    def _batched_image_paths(self, folder_path, start_idx, end_idx):
         """ Yield batches of image paths within the specified index range. """
+        BATCH_SIZE = min(10, end_idx - start_idx)
         img_paths = [os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path)]
-        for i in range(start_idx, min(end_idx, len(img_paths)), BATCH_SIZE):
-            # Adjust the end index of the slice to not exceed end_idx
+        for i in range(start_idx, end_idx, BATCH_SIZE):
             batch_end_idx = min(i + BATCH_SIZE, end_idx)
             yield img_paths[i:batch_end_idx]
 
-       
     '''What is this function doing?
     1. Each thread iterates through it's assigned selected_folders
     2. For each folder, it generates batches of image paths using _batched_image_paths
@@ -431,12 +433,10 @@ class DataUploadView(ttk.Frame):
        This function returns a dictionary of images that were accepted by the neural network filter along with their features.
     '''
     def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
-        print("starting processing")
         self.append_status(f"Starting Processing on: [{start_idx}-{end_idx}]")
         candidate_folder = self.master.candidates_dir
-        
         for folder_path in selected_folders:
-            for batched_img_paths in self._batched_image_paths(folder_path, 10, start_idx, end_idx):
+            for batched_img_paths in self._batched_image_paths(folder_path, start_idx, end_idx):
                 for img_path in batched_img_paths:
                     # Check for cancellation or pause events
                     if self.cancellation_event.is_set():
@@ -444,10 +444,11 @@ class DataUploadView(ttk.Frame):
                     while self.pause_event.is_set():
                         time.sleep(0.5)
                     
+                    self.append_status(f"[proc]: {img_path}")
                     accepted_images_dict = self.neural_network_filter([img_path], actions)
-                    
+                    accepted_images_dict_copy = accepted_images_dict.copy()
                     # if images are accepted by the neural network, process the candidate images
-                    for img_path, features in list(accepted_images_dict.items()):
+                    for img_path, features in accepted_images_dict_copy.items():
                         unique_id = uuid.uuid4() # to avoid duplicate names
                         unique_path = f"{unique_id}_{os.path.basename(img_path)}"
                         candidate_image_path = os.path.join(candidate_folder, unique_path)
@@ -457,11 +458,15 @@ class DataUploadView(ttk.Frame):
                         with open(candidate_image_path, 'rb') as f:
                             image_data = f.read()
                             image = Image.open(BytesIO(image_data))
-                            self.master.add_image_to_master_dict(candidate_image_path, features, image, candidate_folder)
+                        
+                        update_data = {'type': 'update_gallery','image_path': candidate_image_path}
                             
                         # Update UI with new image
-                        update_data = {'type': 'update_gallery','image_path': candidate_image_path}
+                    with self.process_lock:
+                        self.master.add_image_to_master_dict(candidate_image_path, features, image, candidate_folder)
                         self.ui_update_queue.put(update_data)
+                        
+
 
     '''
     Listeners for UI updates
@@ -503,7 +508,6 @@ class DataUploadView(ttk.Frame):
         self.master.after(100, self.listen_for_ui_updates)
 
     def process_ui_update(self, update_request):
-        self.append_status(f"[proc]: {update_request}")
         match update_request['type']:
             case 'update_progress':
                 self.master.views['Gallery'].update_progress(update_request['count'])
@@ -561,8 +565,24 @@ class DataUploadView(ttk.Frame):
         elif "Older adults (65 and older)" in selected_age_ranges and detected_age >= 65:
             return True
         return False
+    
+    def capture_output(func):
+        """Wrapper to capture print output."""
 
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            old_stdout = sys.stdout
+            new_stdout = io.StringIO()
+            sys.stdout = new_stdout
+            try:
+                return func(*args, **kwargs)
+            finally:
+                sys.stdout = old_stdout
+
+        return wrapper
+    
     # Neural netork source https://github.com/serengil/deepface
+    @capture_output
     def neural_network_filter(self, image_paths, actions):
         self.temp_accepted_images = {}
         # Preparing action sets for filtering criteria
