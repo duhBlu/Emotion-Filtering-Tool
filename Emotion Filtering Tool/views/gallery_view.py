@@ -121,7 +121,6 @@ class GalleryView(ttk.Frame):
         self.master.views['Manual'].receive_data(updated_image_paths)
         self.master.change_view('Manual')
         self.clear_gallery()
-
         
     '''
     Cancel/pause/resume the processing
