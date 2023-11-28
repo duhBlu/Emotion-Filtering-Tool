@@ -97,9 +97,15 @@ class GalleryView(ttk.Frame):
     '''     
     def send_to_review(self):
         pending_review_dir = self.master.pending_review_dir
-        candidate_paths = self.candidate_paths.copy() 
-        self.candidate_paths.clear()
-        candidate_images = {path: self.master.master_image_dict[path] for path in candidate_paths}
+
+        # Filter only the displayed candidate paths
+        displayed_candidate_paths = [path for path in self.candidate_paths if path in self.shown_candidate_paths]
+        for file_path in displayed_candidate_paths:
+            self.candidate_paths.remove(file_path)
+        self.shown_candidate_paths.clear()
+        
+        # Process only the displayed images
+        candidate_images = {path: self.master.master_image_dict[path] for path in displayed_candidate_paths}
         for image_path, image_data in candidate_images.items():
             dest_path = os.path.join(pending_review_dir, os.path.basename(image_path))
             shutil.copy2(image_path, dest_path)
@@ -107,6 +113,7 @@ class GalleryView(ttk.Frame):
             self.master.master_image_dict[dest_path] = image_data
             del self.master.master_image_dict[image_path]
             os.remove(image_path)
+
         updated_image_paths = [path for path in self.master.master_image_dict
                                if self.master.master_image_dict[path]['working_directory'] == pending_review_dir 
                                and path not in self.sent_paths]
