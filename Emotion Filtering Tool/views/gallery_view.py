@@ -11,6 +11,7 @@ class GalleryView(ttk.Frame):
         self.row_heights = []
         self.imageTk_objects = []
         self.candidate_paths = []
+        self.shown_candidate_paths = []
         self.sent_paths = []
         self.current_col = 0 # for keeping track of the image positions
         self.current_row = 0
@@ -113,6 +114,7 @@ class GalleryView(ttk.Frame):
         self.master.views['Manual'].receive_data(updated_image_paths)
         self.master.change_view('Manual')
         self.clear_gallery()
+        
     '''
     Cancel/pause/resume the processing
     '''   
@@ -133,10 +135,11 @@ class GalleryView(ttk.Frame):
     '''
     Recieve and display data
     '''   
-    def receive_data(self, image_file_path):
+    def receive_data(self, file_path):
+        self.candidate_paths.append(file_path)
         # Check if more images can be loaded
         if self.images_loaded < 100:
-            self.load_single_image(image_file_path)
+            self.load_single_image(file_path)
             self.images_loaded += 1
 
             # Enable 'Load More' button if the initial set of images have been loaded
@@ -144,7 +147,8 @@ class GalleryView(ttk.Frame):
                 self.load_more_button["state"] = tk.NORMAL
 
     def load_single_image(self, image_path):
-        self.candidate_paths.append(image_path)
+        self.shown_candidate_paths.append(image_path)
+        
         # Retrieve image data from the master image dictionary
         image_data = self.master.master_image_dict.get(image_path, {})
         photo_object = image_data.get('photo_object')
@@ -205,17 +209,29 @@ class GalleryView(ttk.Frame):
     # load in up to 100 more images post initial load
     def load_more_images(self):
         self.load_more_button["state"] = tk.DISABLED
-        load_count = 100 if self.images_loaded >= 100 else 100
+        load_count = 100
 
-        remaining_images = {k: v for k, v in self.image_tag_mappings.items() if k not in self.candidate_images}
-        image_paths = list(remaining_images.keys())
+        # Get the paths of images that haven't been shown yet
+        remaining_image_paths = [path for path in self.candidate_paths if path not in self.shown_candidate_paths]
 
-        for image_path in image_paths[:load_count]:
-            features = remaining_images.get(image_path, {}).get('tags', {})
-            if features:
-                self.load_single_image(image_path, features)
-                self.images_loaded += 1
-            self.load_more_button["state"] = tk.NORMAL
+        # Load up to 100 more images
+        for image_path in remaining_image_paths[:load_count]:
+            # Retrieve image data from the master image dictionary
+            image_data = self.master.master_image_dict.get(image_path, {})
+            photo_object = image_data.get('photo_object')
+            tags = image_data.get('tags', {})
+
+            if photo_object:
+                # Resize and display the image
+                resized_image = self.resize_image(photo_object)
+                formatted_tags = ", ".join(tags.values()) if tags else ""
+                self.add_image_to_gallery(resized_image, formatted_tags)
+
+                # Add this path to the shown candidate paths
+                self.shown_candidate_paths.append(image_path)
+
+        self.load_more_button["state"] = tk.NORMAL
+
             
     '''
     Clear Images
@@ -226,6 +242,7 @@ class GalleryView(ttk.Frame):
             widget.destroy()
         self.imageTk_objects.clear()
         self.image_positions.clear()
+        self.shown_candidate_paths.clear()
         self.row_heights.clear()
         self.current_row_width = 0
         self.current_col = 0
