@@ -11,7 +11,7 @@
     <OutputPath>.</OutputPath>
     <Name>Emotion Filtering Tool</Name>
     <RootNamespace>Emotion Filtering Tool</RootNamespace>
-    <InterpreterId>MSBuild|env|$(MSBuildProjectFullPath)</InterpreterId>
+    <InterpreterId>Global|PythonCore|3.10</InterpreterId>
     <IsWindowsApplication>True</IsWindowsApplication>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
     <InterpreterPath>C:\Users\jacob\source\repos\Emotion-Filtering-Tool\Emotion Filtering Tool\env\Scripts\python.exe</InterpreterPath>

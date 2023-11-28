@@ -104,21 +104,42 @@ class DataUploadView(ttk.Frame):
         self.status_text.config(yscrollcommand=self.status_scroll.set)
         self.status_scroll.grid(row=3, column=0, sticky='nse')
 
+        self.clear_status_button = ttk.Button(self, text="Clear", command=self.clear_status_text)
+        self.clear_status_button.grid(row=3, column=0, padx=(0, 30), pady=(0, 15), sticky='se')
+        
         # Process Button Setup
         self.process_button = ttk.Button(self, text="No Dataset Uploaded", command=self.process_images, state=tk.DISABLED)
         self.process_button.grid(row=3, column=1, padx=(250, 20), pady=20, sticky='se')
+        self.process_button['state'] = tk.DISABLED
         
-        # Image Width Entry Setup
-        self.width_label = ttk.Label(self, text="Display Image Width:")
-        self.width_label.grid(row=3, column=1, sticky='w', padx=(20, 0), pady=(300, 0))
+        self.width_label = ttk.Label(self, text="Width:")
+        self.width_label.grid(row=3, column=1, sticky='w', padx=(20, 0), pady=(220, 0))
+    
         self.width_entry = ttk.Entry(self, width=5)
-        self.width_entry.grid(row=3, column=1, sticky='w', padx=(160, 0), pady=(300, 0))
+        self.width_entry.grid(row=3, column=1, sticky='w', padx=(60, 0), pady=(220, 0))
         self.width_entry.insert(0, "200")  # default width
-        self.width_entry.bind("<FocusOut>", self.validate_width_entry)
+        self.width_entry.bind("<KeyRelease>", self.on_width_entry_key_release)
+        self.width_entry.bind("<FocusIn>", self.on_entry_focus)
 
+    
     '''
     UI helper functions
     '''
+    def on_entry_focus(self, event):
+        event.widget.select_range(0, tk.END)
+        event.widget.icursor(tk.END)
+        
+    def on_width_entry_key_release(self, event):
+        current_text = self.width_entry.get()
+        try:
+            # Try to convert the text to an integer
+            int(current_text)  # If this fails, ValueError will be raised
+            self.last_valid_width = current_text  # Update the last valid value
+        except ValueError:
+            # If conversion fails, revert to the last valid value or default
+            self.width_entry.delete(0, tk.END)
+            self.width_entry.insert(0, self.last_valid_width if hasattr(self, 'last_valid_width') else "200")
+        
     def validate_width_entry(self):
         try:
             user_width = int(self.width_entry.get())
@@ -137,7 +158,6 @@ class DataUploadView(ttk.Frame):
         self.notebook.add(frame, text="Emotions")
 
         emotion_options = ["Angry", "Crying", "Sad", "Surprised", "Confused", "Shy", "Neutral"] 
-        # option: tk.BooleanVar(value=True) to set the default value to true
         self.emotion_vars = {option: tk.BooleanVar(value=True) for option in emotion_options}  # Each emotion gets its own BooleanVar
         
         for i, option in enumerate(emotion_options):
@@ -170,6 +190,11 @@ class DataUploadView(ttk.Frame):
         for i, option in enumerate(gender_options):
             ttk.Checkbutton(frame, text=option, variable=self.gender_vars[option]).grid(row=i, column=0, sticky='w', padx=(20, 0), pady=(15, 0))
     
+    def clear_status_text(self):
+        self.status_text.config(state=tk.NORMAL)
+        self.status_text.delete("1.0", tk.END)
+        self.status_text.config(state=tk.DISABLED)
+
     def append_status(self, status_text):
         """Appends the provided text to the bottom of the status text widget with a fading effect. Just for fun :3 """
         self.status_text.config(state=tk.NORMAL)
@@ -221,17 +246,17 @@ class DataUploadView(ttk.Frame):
     '''
     def extract_file(self, file_path):
         # Determine the file extension
-        basename = os.path.basename(file_path)
-        ext = os.path.splitext(basename)[-1].lower()
-        if basename.endswith('.tar.gz'):
-            ext = '.tar.gz'
-        elif basename.endswith('.tar.bz2'):
-            ext = '.tar.bz2'
+                basename = os.path.basename(file_path)
+                ext = os.path.splitext(basename)[-1].lower()
+                if basename.endswith('.tar.gz'):
+                    ext = '.tar.gz'
+                elif basename.endswith('.tar.bz2'):
+                    ext = '.tar.bz2'
         # Call the correct threaded extraction function based on the file extension
-        if ext in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
-            threading.Thread(target=self._threaded_extract_archive, args=(file_path, ext), daemon=True).start()
-        elif ext == '.hdf5':
-            threading.Thread(target=self._threaded_extract_hdf5, args=(file_path,), daemon=True).start()
+                if ext in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
+                    threading.Thread(target=self._threaded_extract_archive, args=(file_path, ext), daemon=True).start()
+                elif ext == '.hdf5':
+                    threading.Thread(target=self._threaded_extract_hdf5, args=(file_path,), daemon=True).start()
     
     # extracts images from zip.tar files and adds them to the dataset_filenames_listbox
     def _threaded_extract_archive(self, archive_path, ext):
@@ -304,7 +329,7 @@ class DataUploadView(ttk.Frame):
             self._post_extraction_status(base_name, extract_dir, image_count)
         else:
             self.append_status(f"{base_name}: No images found in the HDF5 file.")   
-
+        
         self.master.after(0, self._finish_upload) 
     
     def _post_extraction_status(self, base_name, extract_dir, image_count):
@@ -315,8 +340,8 @@ class DataUploadView(ttk.Frame):
         else:
             self.append_status(f"{base_name}: Extracted {image_count} images in {int(minutes)} minutes and {int(seconds)} seconds")
         self.append_status(f"{base_name}: Extracted to {extract_dir}")
-        self.master.after(0, self._finish_upload)
-    
+        self.master.after(0, self._finish_upload) 
+        
     def _finish_upload(self):
         self.process_button['text'] = "Process"
         self.process_button['state'] = tk.NORMAL    
@@ -363,13 +388,13 @@ class DataUploadView(ttk.Frame):
 
         # Partition images by thread count for processing
         image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
-        
+
         # Create and start threads for processing images
         for start_idx, end_idx in image_ranges:
             thread = threading.Thread(target=self._threaded_process_images, args=(actions, selected_folders, start_idx, end_idx))
             self.threads.append(thread)
             thread.start()
-            
+
         #start the queue listener
         self.listen_for_ui_updates(thread_check=True)
         
@@ -383,7 +408,7 @@ class DataUploadView(ttk.Frame):
         # Start a thread to wait for all processing threads
         wait_thread = threading.Thread(target=wait_for_threads)    
         wait_thread.start()
-        
+
     # partition images by thread count
     def _divide_images_by_count(self, selected_folders, num_threads):
         """ 
@@ -421,7 +446,7 @@ class DataUploadView(ttk.Frame):
             batch_end_idx = min(i + BATCH_SIZE, end_idx)
             self.append_status(f"[proc]: Yielding Batch: [{i}-{batch_end_idx}]")
             yield img_paths[i:batch_end_idx]
-
+       
     '''What is this function doing?
     1. Each thread iterates through it's assigned selected_folders
     2. For each folder, it generates batches of image paths using _batched_image_paths
@@ -462,7 +487,7 @@ class DataUploadView(ttk.Frame):
                     with self.process_lock:
                         self.master.add_image_to_master_dict(candidate_image_path, features, image, candidate_folder)
                         self.ui_update_queue.put(update_data)
-          
+
     '''
     Listeners for UI updates
     '''  
@@ -513,6 +538,7 @@ class DataUploadView(ttk.Frame):
             # Do not reschedule, effectively stopping the listener
             return
 
+
     def process_ui_update(self, update_request):
         match update_request['type']:
             case 'update_progress':
@@ -522,7 +548,7 @@ class DataUploadView(ttk.Frame):
             case _:
                 print("Unknown update request type")
 
-        self.master.views['Gallery'].update_idletasks()
+        self.master.views['Gallery'].update_idletasks() 
 
     def get_custom_emotion(self, deepface_output):
         # Define a threshold for the dominance of an emotion
@@ -571,7 +597,7 @@ class DataUploadView(ttk.Frame):
         elif "Older adults (65 and older)" in selected_age_ranges and detected_age >= 65:
             return True
         return False
-    
+
     def capture_output(func):
         """Wrapper to capture print output."""
 
@@ -623,7 +649,7 @@ class DataUploadView(ttk.Frame):
                 # Add image to accepted if it meets all selected criteria
                 if all(feature in features for feature in actions):
                     self.temp_accepted_images[image_path] = features
-                
+
         except Exception as e:
             self.append_status(f"Error analyzing images. Error: {e}")
             print(f"Error analyzing images. Error: {e}")

@@ -78,7 +78,7 @@ class MainWindow(tk.Frame):
                 else:
                     btn.config(bg="#bfbfbf", fg="#262626")
       
-    # This function is called when user uploads images. It adds the images to the master dictionary
+    # This function is called when images get processed. It adds the images to the master dictionary
     # maintains image tag mapping and a reference to the photo object for updates
     def add_image_to_master_dict(self, file_path, tags, photo_object, current_directory):
         # Add an entry to the master image dictionary
@@ -126,7 +126,6 @@ class MainWindow(tk.Frame):
                         
     # Function that is called when the application closes. Kills the image processing then the root                  
     def destroy(self):
-        # Call the superclass destroy method
         self.views['Upload'].stop_processing()
         root.quit()
 
