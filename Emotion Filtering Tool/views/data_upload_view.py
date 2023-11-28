@@ -56,7 +56,6 @@ class DataUploadView(ttk.Frame):
         }
         self.colors = ['#{:02x}{:02x}{:02x}'.format(i, i, i) for i in range(0, 198, 207 // (15 - 1))] 
         self.create_widgets()
-        self.listen_for_ui_updates()  
 
     '''
     Initialize UI
@@ -326,13 +325,6 @@ class DataUploadView(ttk.Frame):
     PROCESSING IMAGES
     '''
     def process_images(self):
-        # Clear the queue just in case
-        while True:
-            try:
-                self.ui_update_queue.get_nowait()
-            except queue.Empty:
-                break        
-
         # Initialize variables
         self.processed_images_count = 0
         self.cancellation_event.clear()
@@ -377,16 +369,21 @@ class DataUploadView(ttk.Frame):
             thread = threading.Thread(target=self._threaded_process_images, args=(actions, selected_folders, start_idx, end_idx))
             self.threads.append(thread)
             thread.start()
-
+            
+        #start the queue listener
+        self.listen_for_ui_updates(thread_check=True)
+        
         # Function to wait for all threads to complete
         def wait_for_threads():
             for thread in self.threads:
                 thread.join()
+            # Stop the listener after threads are done
+            self.listen_for_ui_updates(thread_check=False)
 
         # Start a thread to wait for all processing threads
         wait_thread = threading.Thread(target=wait_for_threads)    
         wait_thread.start()
-
+        
     # partition images by thread count
     def _divide_images_by_count(self, selected_folders, num_threads):
         """ 
@@ -495,15 +492,27 @@ class DataUploadView(ttk.Frame):
         
     # Callback system for checking the queue for UI updates
     # since tkinter objects are not thread safe
-    def listen_for_ui_updates(self):
-        if not self.cancellation_event.is_set():
+    def listen_for_ui_updates(self, thread_check=False):
+        # Check if any threads are still alive or if the update queue still has items
+        if thread_check and (any(thread.is_alive() for thread in self.threads) or not self.ui_update_queue.empty()):
             try:
                 update_request = self.ui_update_queue.get_nowait()
                 self.process_ui_update(update_request)
             except queue.Empty:
                 pass
-        # Schedule the next check in 100ms
-        self.master.after(100, self.listen_for_ui_updates)
+            # Schedule the next check in 100ms
+            self.master.after(100, lambda: self.listen_for_ui_updates(thread_check=True))
+        else:
+            # Check and process any remaining items in the queue
+            while not self.ui_update_queue.empty():
+                try:
+                    update_request = self.ui_update_queue.get_nowait()
+                    self.process_ui_update(update_request)
+                except queue.Empty:
+                    break
+            # Do not reschedule, effectively stopping the listener
+            return
+
 
     def process_ui_update(self, update_request):
         match update_request['type']:

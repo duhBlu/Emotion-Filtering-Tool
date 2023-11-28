@@ -42,7 +42,7 @@ class AugmentationView(ttk.Frame):
         self.frame_images.bind("<Configure>", self.on_frame_configure)
         self.frame_images.bind("<MouseWheel>", self._on_mousewheel)
 
-        self.augment_button = ttk.Button(self, text="Process Selected", command=self.augment_images)
+        self.augment_button = ttk.Button(self, text="Modify Selected", command=self.augment_images)
         self.augment_button.grid(row=1, column=0, padx=10, pady=10, sticky="w")
         
         self.export_button = ttk.Button(self, text="Export All", command=self.save_augmented_images)
