@@ -114,7 +114,8 @@ class DataUploadView(ttk.Frame):
         self.width_entry = ttk.Entry(self, width=5)
         self.width_entry.grid(row=3, column=1, sticky='w', padx=(60, 0), pady=(220, 0))
         self.width_entry.insert(0, "200")  # default width
-        self.width_entry.bind("<FocusOut>", self.validate_width_entry)
+        self.width_entry.bind("<KeyRelease>", self.on_width_entry_key_release)
+        self.width_entry.bind("<FocusIn>", self.on_entry_focus)
 
         # Move the process button slightly to the right to accommodate the new entries
         self.process_button.grid(row=3, column=1, padx=(250, 20), pady=20, sticky='se')
@@ -123,6 +124,22 @@ class DataUploadView(ttk.Frame):
     UI helper functions
     '''
     def validate_width_entry(self, event):
+        def on_entry_focus(self, event):
+            event.widget.select_range(0, tk.END)
+            event.widget.icursor(tk.END) 
+        
+    def on_width_entry_key_release(self, event):
+        current_text = self.width_entry.get()
+        try:
+            # Try to convert the text to an integer
+            int(current_text)  # If this fails, ValueError will be raised
+            self.last_valid_width = current_text  # Update the last valid value
+        except ValueError:
+            # If conversion fails, revert to the last valid value or default
+            self.width_entry.delete(0, tk.END)
+            self.width_entry.insert(0, self.last_valid_width if hasattr(self, 'last_valid_width') else "200")
+        
+    def validate_width_entry(self):
         try:
             # Get the current width value from the entry
             user_width = int(self.width_entry.get())
