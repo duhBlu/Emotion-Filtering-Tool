@@ -1,8 +1,11 @@
+from functools import wraps
 import tkinter as tk
 from tkinter import ttk, filedialog
 import tkinter.messagebox as messagebox
 from io import BytesIO
 from PIL import Image
+import sys
+import io
 import threading
 import zipfile
 import tarfile
@@ -240,37 +243,26 @@ class DataUploadView(ttk.Frame):
             for file_path in file_paths:
                 self.extract_file(file_path)
     
-    '''
-    EXTRACT ARCHIVES
-        Accepts .zip, .tar, .tar.gz, .tar.bz2, hdf5
-        dont think the hdf5 is calculating time to upload, start time should not be self.start_time, should not be class variable, skewing ent time results for multiple parallel uploads
-    '''
     def extract_file(self, file_path):
         # Determine the file extension
-                basename = os.path.basename(file_path)
-                ext = os.path.splitext(basename)[-1].lower()
-                if basename.endswith('.tar.gz'):
-                    ext = '.tar.gz'
-                elif basename.endswith('.tar.bz2'):
-                    ext = '.tar.bz2'
-        # Call the correct threaded extraction function based on the file extension
-                if ext in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
-                    threading.Thread(target=self._threaded_extract_archive, args=(file_path, ext), daemon=True).start()
-                elif ext == '.hdf5':
-                    threading.Thread(target=self._threaded_extract_hdf5, args=(file_path,), daemon=True).start()
+        basename = os.path.basename(file_path)
+        ext = os.path.splitext(basename)[-1].lower()
+        if basename.endswith('.tar.gz'):
+            ext = '.tar.gz'
+        elif basename.endswith('.tar.bz2'):
+            ext = '.tar.bz2'
+# Call the correct threaded extraction function based on the file extension
+        if ext in ['.zip', '.tar', '.tar.gz', '.tar.bz2']:
+            threading.Thread(target=self._threaded_extract_archive, args=(file_path, ext), daemon=True).start()
+        elif ext == '.hdf5':
+            threading.Thread(target=self._threaded_extract_hdf5, args=(file_path,), daemon=True).start()
     
     '''
     EXTRACT ARCHIVES
         Accepts .zip, .tar, .tar.gz, .tar.bz2, hdf5
-        dont think the hdf5 is calculating time to upload, start time should not be self.start_time, should not be class variable, skewing ent time results for multiple parallel uploads
     '''
-    def extract_archive(self, archive_path, ext):
-        if ext == '.gz' or ext == '.bz2':  # Handle tar.gz and tar.bz2
-            ext = '.'.join(os.path.basename(archive_path).split('.')[-2:])
-        threading.Thread(target=self._threaded_archive_extraction, args=(archive_path, ext), daemon=True).start()
-
     # extracts images from zip.tar files and adds them to the dataset_filenames_listbox
-    def _threaded_archive_extraction(self, archive_path, ext):
+    def _threaded_extract_archive(self, archive_path, ext):
         base_name = os.path.basename(archive_path).replace(ext, '')
         extract_dir = os.path.join(self.master.extracted_images_dir, base_name).replace('\\', '/')
 
@@ -322,7 +314,7 @@ class DataUploadView(ttk.Frame):
         self.master.after(0, self._finish_upload) 
 
     # extracts images from hdf5 files that can be created in the export options and adds them to the dataset_filenames_listbox
-    def extract_hdf5(self, hdf5_path):
+    def _threaded_extract_hdf5(self, hdf5_path):
         base_name = os.path.basename(hdf5_path).replace('.hdf5', '')
         extract_dir = os.path.join(self.master.extracted_images_dir, base_name).replace('\\', '/')
 
@@ -393,24 +385,26 @@ class DataUploadView(ttk.Frame):
         if selected_ages: actions['age'] = selected_ages
         if selected_genders: actions['gender'] = selected_genders
         if selected_races: actions['race'] = selected_races
+        self.append_status(f"[proc]: Filtering images based on {actions}")
 
         self.master.change_view('Gallery')
         
-        # Determine number of threads
-        NUM_THREADS = (os.cpu_count() // 2) or 4
-
         # Gather selected dataset folders
         selected_folders = [folder_path for idx, folder_path in enumerate(self.dataset_image_counts.keys()) if idx in selected_indices]
 
+        # Determine number of threads
+        NUM_THREADS = (os.cpu_count() // 2) or 4
+        self.append_status(f"[proc]: Number of threads: {NUM_THREADS}")
+
         # Partition images by thread count for processing
         image_ranges = self._divide_images_by_count(selected_folders, NUM_THREADS)
-
+        
         # Create and start threads for processing images
         for start_idx, end_idx in image_ranges:
             thread = threading.Thread(target=self._threaded_process_images, args=(actions, selected_folders, start_idx, end_idx))
             self.threads.append(thread)
             thread.start()
-
+            
         #start the queue listener
         self.listen_for_ui_updates(thread_check=True)
         
@@ -418,6 +412,8 @@ class DataUploadView(ttk.Frame):
         def wait_for_threads():
             for thread in self.threads:
                 thread.join()
+            # Stop the listener after threads are done
+            self.listen_for_ui_updates(thread_check=False)
 
         # Start a thread to wait for all processing threads
         wait_thread = threading.Thread(target=wait_for_threads)    
@@ -438,7 +434,7 @@ class DataUploadView(ttk.Frame):
         # Determine distribution of images across threads
         avg_images_per_thread = total_images // num_threads
         remaining_images = total_images % num_threads
-
+        self.append_status(f"[proc]: Images per-thread: {avg_images_per_thread}")
         # Partition images into ranges for each thread
         current_idx = 0
         ranges = []
@@ -452,8 +448,10 @@ class DataUploadView(ttk.Frame):
         return ranges
 
     
-    def _batched_image_paths(self, folder_path, BATCH_SIZE, start_idx, end_idx):
+    # yield batches of image paths within the specified index range
+    def _batched_image_paths(self, folder_path, start_idx, end_idx):
         """ Yield batches of image paths within the specified index range. """
+        BATCH_SIZE = min(10, end_idx - start_idx)
         img_paths = [os.path.join(folder_path, img_file) for img_file in os.listdir(folder_path)]
         for i in range(start_idx, end_idx, BATCH_SIZE):
             batch_end_idx = min(i + BATCH_SIZE, end_idx)
@@ -461,21 +459,18 @@ class DataUploadView(ttk.Frame):
             yield img_paths[i:batch_end_idx]
        
     '''What is this function doing?
-    
-    
-    1. Iterates over each folder_path in selected_folders.
-    2. For each folder, it retrieves batches of image paths using _batched_image_paths.
-    3. Each image path in the batch is then processed. 
-       However, an image is processed only if its index (processed_so_far) falls within the range allocated to the thread (start_idx to end_idx).
-    4. This means each thread only processes its assigned portion of the total images, ensuring an even workload distribution per thread.
+    1. Each thread iterates through it's assigned selected_folders
+    2. For each folder, it generates batches of image paths using _batched_image_paths
+       which yields a subset of the paths based on the thread's assigned range.
+    3. Each image path is procesed in a loop, and for each image path
+       the neural_network_filter function is called with the current image and the selected actions (filters). 
+       This function returns a dictionary of images that were accepted by the neural network filter along with their features.
     '''
     def _threaded_process_images(self, actions, selected_folders, start_idx, end_idx):
-        print("started processing")
-        processed_so_far = 0
+        self.append_status(f"[proc]: Processing range: [{start_idx}-{end_idx}]")
         candidate_folder = self.master.candidates_dir
-        
         for folder_path in selected_folders:
-            for batched_img_paths in self._batched_image_paths(folder_path, 10, start_idx, end_idx):
+            for batched_img_paths in self._batched_image_paths(folder_path, start_idx, end_idx):
                 for img_path in batched_img_paths:
                     # Check for cancellation or pause events
                     if self.cancellation_event.is_set():
@@ -484,8 +479,10 @@ class DataUploadView(ttk.Frame):
                         time.sleep(0.5)
                     
                     accepted_images_dict = self.neural_network_filter([img_path], actions)
-                    for img_path, features in accepted_images_dict.items():
-                        unique_id = uuid.uuid4()
+                    accepted_images_dict_copy = accepted_images_dict.copy()
+                    # if images are accepted by the neural network, process the candidate images
+                    for img_path, features in accepted_images_dict_copy.items():
+                        unique_id = uuid.uuid4() # to avoid duplicate names
                         unique_path = f"{unique_id}_{os.path.basename(img_path)}"
                         candidate_image_path = os.path.join(candidate_folder, unique_path)
                         shutil.copy(img_path, candidate_image_path)
@@ -494,22 +491,28 @@ class DataUploadView(ttk.Frame):
                         with open(candidate_image_path, 'rb') as f:
                             image_data = f.read()
                             image = Image.open(BytesIO(image_data))
-                            self.master.add_image_to_master_dict(candidate_image_path, features, image, candidate_folder)
+                        
+                        update_data = {'type': 'update_gallery','image_path': candidate_image_path}
                             
                         # Update UI with new image
-                        update_data = {'type': 'update_gallery','image_path': candidate_image_path}
+                    with self.process_lock:
+                        self.master.add_image_to_master_dict(candidate_image_path, features, image, candidate_folder)
                         self.ui_update_queue.put(update_data)
 
     '''
     Listeners for UI updates
     '''  
     def pause_processing(self):
+        self.append_status("Pausing processing...")
         self.pause_event.set()
 
     def resume_processing(self):
+        self.append_status("Resuming processing...")
         self.pause_event.clear()
         
     def stop_processing(self):
+        # kill all threads and clear the queue
+        start_time = time.time()
         self.cancellation_event.set() 
         # join all threads and clear the queue
         for thread in self.threads:
@@ -519,24 +522,43 @@ class DataUploadView(ttk.Frame):
                 self.ui_update_queue.get_nowait()
             except queue.Empty:
                 break
+        elapsed_time = time.time() - start_time
+        _, seconds = divmod(elapsed_time, 60)
+        self.append_status(f"Stopped processing in {int(seconds)} seconds")
         
-    def listen_for_ui_updates(self):
-        try:
-            update_request = self.ui_update_queue.get_nowait()
-            self.process_ui_update(update_request)
-        except queue.Empty:
-            pass
-        # Schedule the next check in 100ms
-        self.master.after(100, self.listen_for_ui_updates)
-
+    # Callback system for checking the queue for UI updates
+    # since tkinter objects are not thread safe
+    def listen_for_ui_updates(self, thread_check=False):
+        # Check if any threads are still alive or if the update queue still has items
+        if thread_check and (any(thread.is_alive() for thread in self.threads) or not self.ui_update_queue.empty()):
+            try:
+                update_request = self.ui_update_queue.get_nowait()
+                self.process_ui_update(update_request)
+            except queue.Empty:
+                pass
+            # Schedule the next check in 100ms
+            self.master.after(100, lambda: self.listen_for_ui_updates(thread_check=True))
+        else:
+            # Check and process any remaining items in the queue
+            while not self.ui_update_queue.empty():
+                try:
+                    update_request = self.ui_update_queue.get_nowait()
+                    self.process_ui_update(update_request)
+                except queue.Empty:
+                    break
+            # Do not reschedule, effectively stopping the listener
+            return
 
     def process_ui_update(self, update_request):
-        if update_request['type'] == 'update_progress':
-            self.master.views['Gallery'].update_progress(update_request['count'])
-        elif update_request['type'] == 'update_gallery':
-            self.master.views['Gallery'].receive_data(update_request['image_path'])
+        match update_request['type']:
+            case 'update_progress':
+                self.master.views['Gallery'].update_progress(update_request['count'])
+            case 'update_gallery':
+                self.master.views['Gallery'].receive_data(update_request['image_path'])
+            case _:
+                print("Unknown update request type")
 
-        self.master.views['Gallery'].update_idletasks() 
+        self.master.views['Gallery'].update_idletasks()
 
     def get_custom_emotion(self, deepface_output):
         # Define a threshold for the dominance of an emotion
@@ -602,57 +624,49 @@ class DataUploadView(ttk.Frame):
         return wrapper
     
     # Neural netork source https://github.com/serengil/deepface
+    # Neural netork source https://github.com/serengil/deepface
+    @capture_output
     def neural_network_filter(self, image_paths, actions):
-        print("filtering images")
-        accepted_images = {}
+        self.temp_accepted_images = {}
+        # Preparing action sets for filtering criteria
+        action_sets = {key: set(value.lower() for value in actions[key]) for key in actions if actions[key]}
         try:
             for image_path in image_paths:
                 analysis = DeepFace.analyze(img_path=image_path, actions=list(actions.keys()), detector_backend='mtcnn', enforce_detection=False)
-                #print(analysis)]
-                # future dev note
-                # instead of using DeepFace to process images, attach a chat gpt api to the image and use the chat gpt api to process the image
                 self.processed_images_count += 1
-                update_request = {
-                    'type': 'update_progress',
-                    'count': self.processed_images_count
-                }
-                self.ui_update_queue.put(update_request)
-
-                # analyze the face data frum deepface
-                face_data = analysis[0]
+                self.ui_update_queue.put({'type': 'update_progress', 'count': self.processed_images_count})
+                face_data = analysis
                 features = {}
-                if actions.get('emotion'):
-                    emotion_scores = face_data['emotion']
-                    mapped_emotion = self.get_custom_emotion(emotion_scores)
-                    features['emotion'] = mapped_emotion.lower()
 
-                if actions.get('gender'):
-                    features['gender'] = self.label_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower())
+                # Process and check each feature if applicable
+                if 'emotion' in actions:
+                    emotion = self.get_custom_emotion(face_data['emotion']).lower() 
+                    if emotion in action_sets.get('emotion', {emotion}):
+                        features['emotion'] = emotion
 
-                if actions.get('race'):
-                    features['race'] = face_data['dominant_race'].lower()
+                if 'gender' in actions:
+                    gender = self.gender_mapping.get(face_data['dominant_gender'].lower(), face_data['dominant_gender'].lower() )
+                    if gender in action_sets.get('gender', {gender}):
+                        features['gender'] = gender
 
-                if actions.get('age'):
-                    detected_age = face_data['age']
-                    age_is_acceptable = self.age_within_selected_range(detected_age, actions.get('age'))
-                    if age_is_acceptable:
-                        features['age'] = str(detected_age)
+                if 'race' in actions:
+                    race = face_data['dominant_race'].lower()
+                    if race in action_sets.get('race', {race}):
+                        features['race'] = race
 
-                if (
-                    (not actions.get('emotion') or features['emotion'] in [emotion.lower() for emotion in actions.get('emotion')]) and
-                    (not actions.get('age') or 'age' in features) and
-                    (not actions.get('race') or features['race'] in [race.lower() for race in actions.get('race')]) and
-                    (not actions.get('gender') or features['gender'] in [gender.lower() for gender in actions.get('gender')])
-                ):
-                    accepted_images[image_path] = features
+                if 'age' in actions and self.age_within_selected_range(face_data['age'], actions.get('age')):
+                    features['age'] = str(face_data['age'])
 
                 # Add image to accepted if it meets all selected criteria
                 if all(feature in features for feature in actions):
                     self.temp_accepted_images[image_path] = features
-
+                
         except Exception as e:
+            self.append_status(f"Error analyzing images. Error: {e}")
             print(f"Error analyzing images. Error: {e}")
-            return {}
+
+        return self.temp_accepted_images
+
 
 
 
